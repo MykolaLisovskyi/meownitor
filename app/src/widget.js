@@ -9,31 +9,51 @@
   var S={mode:'cat',dock:null,open:false,idleOpen:false};
   var big=Pixel.Sprite('cat','catB',3,'idle'),small=Pixel.Sprite('cat','catB',2,'idle');
 
-  // Step 1 shows the card with sample sessions; the real ones arrive in step 2.
-  var ACT=[
-    {n:'Оновити залежності',st:'wait',ic:'HelpCircleOutline',a:'Питає тебе · 2 питання',t:'4 хв'},
-    {n:'Рефакторинг auth middleware',st:'run',ic:'ConsoleLine',a:'Bash · cargo test',t:'2 хв'},
-    {n:'Сторінка цін',st:'run',ic:'PencilOutline',a:'Edit · pricing.html',t:'12 с'},
-    {n:'Огляд репозиторію',st:'done',ic:'CheckCircleOutline',a:'Готово — твоя черга',t:'1 хв'}
-  ];
-  var IDLE=[['Нічна збірка падає','55 хв'],['Документація API','3 г 49 хв'],['Чистка логів','вчора']];
+  // The live session list from Rust (sessions.rs); limits are still samples until step 3.
+  var LIST=[],moodOverride=null,lastDone=0;
   var LIM=[{l:'5 годин',p:25,r:'31 хв'},{l:'Тиждень',p:34,r:'4 д 17 г'},{l:'Fable',p:5,r:'4 д 17 г'}];
+  var ICON={Bash:'ConsoleLine',PowerShell:'ConsoleLine',Edit:'PencilOutline',Write:'PencilOutline',MultiEdit:'PencilOutline',NotebookEdit:'PencilOutline',Read:'FileDocumentOutline',Grep:'Magnify',Glob:'Magnify',WebFetch:'Internet',WebSearch:'Internet',Task:'Magic',Agent:'Magic','Агент':'Magic',Skill:'Magic','Думає':'Loading','Питає тебе':'HelpCircleOutline','Готово — твоя черга':'CheckCircleOutline','Зупинилась з помилкою':'AlertCircleOutline'};
 
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function ic(n){return '<svg class="i"><use href="#'+n+'"/></svg>';}
   function col(p){return p>=85?'var(--danger)':p>=60?'var(--warn)':'var(--primary)';}
-  function row(s){var h='<div class="row '+s.st+'"><span class="dot '+s.st+'"></span><div class="tx"><div class="l1"><span class="nm">'+esc(s.n)+'</span><span class="tm">'+s.t+'</span></div><div class="ac">'+ic(s.ic)+'<span class="at">'+esc(s.a)+'</span></div>';if(s.st==='wait')h+='<div class="qa"><button type="button" class="qbtn">'+ic('HelpCircleOutline')+'Відповісти</button></div>';return h+'</div></div>';}
-  function idleRow(x){return '<div class="row idle"><span class="dot"></span><div class="tx"><div class="l1"><span class="nm">'+esc(x[0])+'</span><span class="tm">'+x[1]+'</span></div></div></div>';}
+  // How long the current state has lasted — or, for an idle session, how long ago it was active.
+  function ago(since){
+    var s=Math.max(0,Math.floor((Date.now()-since)/1000));
+    if(s<60)return s+' с';var m=Math.floor(s/60);if(m<60)return m+' хв';
+    var h=Math.floor(m/60);if(h<24)return h+' г'+(m%60?' '+(m%60)+' хв':'');return 'вчора';
+  }
+  function iconFor(s){if(s.what.indexOf('Чекає дозволу')===0)return 'KeyOutline';return ICON[s.what]||(s.state==='wait'?'HelpCircleOutline':'ConsoleLine');}
+  function row(s){
+    var h='<div class="row '+s.state+'" data-local="'+esc(s.local||'')+'"><span class="dot '+s.state+'"></span><div class="tx"><div class="l1"><span class="nm">'+esc(s.title)+'</span><span class="tm" data-since="'+s.since+'">'+ago(s.since)+'</span></div>';
+    if(s.state!=='idle')h+='<div class="ac">'+ic(iconFor(s))+'<span class="at">'+esc(s.what+(s.detail?' · '+s.detail:''))+'</span></div>';
+    if(s.state==='wait'&&s.local)h+='<div class="qa"><button type="button" class="qbtn" data-act="open">'+ic('HelpCircleOutline')+'Відкрити в Desktop</button></div>';
+    return h+'</div></div>';
+  }
+  function by(k){return LIST.filter(function(s){return s.state===k;});}
+  function active(){return LIST.filter(function(s){return s.state!=='idle';});}
   function grp(t,arr){return arr.length?'<div class="gh"><span>'+t+'</span><span>'+arr.length+'</span></div>'+arr.map(row).join(''):'';}
   function card(edge){
-    var by=function(k){return ACT.filter(function(s){return s.st===k;});};
-    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('ConsoleLine')+'<span class="tt">Claude</span><span class="ct">'+ACT.length+' активні</span><span class="sp"></span>'+(edge?'':'<button type="button" class="ib" data-act="min" title="Згорнути">'+ic('Minus')+'</button>')+'</div>'+
+    var idle=by('idle'),act=active();
+    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('ConsoleLine')+'<span class="tt">Claude</span><span class="ct">'+(act.length?act.length+' активні':'усе тихо')+'</span><span class="sp"></span>'+(edge?'':'<button type="button" class="ib" data-act="min" title="Згорнути">'+ic('Minus')+'</button>')+'</div>'+
       '<div class="ss">'+grp('Чекають на тебе',by('wait'))+grp('Працюють',by('run'))+grp('Твоя черга',by('done'))+
-      '<button type="button" class="grp'+(S.idleOpen?' open':'')+'" data-act="idle">'+ic('ChevronRight')+'Неактивні<span class="n">'+IDLE.length+'</span></button>'+(S.idleOpen?IDLE.map(idleRow).join(''):'')+'</div>'+
+      (idle.length?'<button type="button" class="grp'+(S.idleOpen?' open':'')+'" data-act="idle">'+ic('ChevronRight')+'Неактивні<span class="n">'+idle.length+'</span></button>'+(S.idleOpen?idle.map(row).join(''):''):'')+
+      (LIST.length?'':'<div class="empty">Сесій за добу нема</div>')+'</div>'+
       '<div class="lim">'+LIM.map(function(l){return '<div class="lr"><span class="ll">'+l.l+'</span><span class="lp">'+l.p+'%</span><span class="lb"><i style="width:'+l.p+'%;background:'+col(l.p)+'"></i></span><span class="rs">'+ic('Autorenew')+l.r+'</span></div>';}).join('')+'</div>'+
-      '<div class="demo">демо-дані — справжні сесії з’являться на кроці 2</div></div>';
+      '<div class="demo">ліміти поки зразкові — справжні на кроці 3</div></div>';
   }
-  function strip(edge){var m=LIM.reduce(function(a,b){return b.p>a.p?b:a;});return '<div class="strip e'+edge+'">'+ACT.map(function(s){return '<span class="dot '+s.st+'"></span>';}).join('')+'<span class="vb"><i style="height:'+m.p+'%;background:'+col(m.p)+'"></i></span></div>';}
+  function strip(edge){var m=LIM.reduce(function(a,b){return b.p>a.p?b:a;});var act=active();return '<div class="strip e'+edge+'">'+(act.length?act.map(function(s){return '<span class="dot '+s.state+'"></span>';}).join(''):'<span class="dot"></span>')+'<span class="vb"><i style="height:'+m.p+'%;background:'+col(m.p)+'"></i></span></div>';}
+  // The cat's mood follows the sessions: someone waiting for you beats everything, then work;
+  // a session that just finished gets a little jump; long silence puts the cat to sleep.
+  function autoMood(){
+    if(by('wait').length)return 'ask';
+    if(by('run').length)return 'work';
+    if(Date.now()-lastDone<6000)return 'done';
+    var newest=LIST.reduce(function(m,s){return Math.max(m,s.since);},0);
+    return Date.now()-newest>20*60*1000?'sleep':'idle';
+  }
+  function setMood(m){if(big.mood!==m){big.mood=small.mood=m;big.t0=small.t0=performance.now();}}
+  function applyMood(){setMood(moodOverride||autoMood());}
 
   function render(){
     if(S.dock&&!S.open)root.innerHTML=strip(S.dock);
@@ -135,15 +155,38 @@
     S.open=false;await relayout();
   });
   root.addEventListener('click',async function(e){
-    var a=e.target.closest('[data-act]');if(!a)return;var act=a.getAttribute('data-act');
+    var a=e.target.closest('[data-act]'),r=e.target.closest('.row');
+    if(!a){if(r&&r.dataset.local)invoke('open_session',{local:r.dataset.local});return;}
+    var act=a.getAttribute('data-act');
     if(act==='min'){S.mode='cat';await relayout('toCat');}
     else if(act==='idle'){S.idleOpen=!S.idleOpen;await relayout();}
+    else if(act==='open'&&r&&r.dataset.local)invoke('open_session',{local:r.dataset.local});
   });
+
+  // New data: re-render what is on screen; resize the window only when the content's size changed,
+  // so a session switching tools does not make the widget twitch.
+  async function refresh(){
+    if(!(S.dock||S.mode==='card'))return;
+    var p=await invoke('poll'),sc=p.scale,bz=measure(sc),bx=contentX(p,bz),by0=p.win.y;
+    render();align();
+    var z=measure(sc);if(z.w!==bz.w||z.h!==bz.h)await fit(bx,by0);
+  }
+  function onData(list){
+    var wasDone={};LIST.forEach(function(x){if(x.state==='done')wasDone[x.sid]=1;});
+    if(list.some(function(x){return x.state==='done'&&!wasDone[x.sid];})&&LIST.length)lastDone=Date.now();
+    LIST=list||[];applyMood();
+    if(!drag)refresh();
+  }
+  listen('sessions',function(ev){onData(ev.payload);});
+  setInterval(function(){
+    root.querySelectorAll('.tm[data-since]').forEach(function(t){t.textContent=ago(+t.getAttribute('data-since'));});
+    applyMood();
+  },1000);
 
   var KINDS={cat:['cat','catB'],blob:['blob','blob'],ghost:['ghost','ghost']};
   listen('tray',function(ev){
     var id=String(ev.payload);
-    if(id.indexOf('mood:')===0){big.mood=small.mood=id.slice(5);big.t0=small.t0=performance.now();}
+    if(id.indexOf('mood:')===0){moodOverride=id==='mood:auto'?null:id.slice(5);applyMood();}
     else if(id.indexOf('kind:')===0){var k=KINDS[id.slice(5)];if(k){big.kind=small.kind=k[0];big.pal=small.pal=Pixel.PAL[k[1]];}}
   });
 
@@ -151,7 +194,8 @@
     var hint=await invoke('start_hint'),how=hint[0]||'';
     if(how==='card')S.mode='card';
     if(how.indexOf('dock-')===0){S.dock=how.charAt(5);S.open=/open$/.test(how);S.hold=S.open;}
-    if(hint[1]){big.mood=small.mood=hint[1];}
+    if(hint[1])moodOverride=hint[1];
+    LIST=await invoke('sessions');applyMood();
     render();align();
     var p=await invoke('poll'),sc=p.scale,z=measure(sc),k=p.work;
     await fit(k.x+k.w-z.w-48*sc,k.y+k.h-z.h-48*sc);

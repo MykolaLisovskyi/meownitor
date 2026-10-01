@@ -21,8 +21,26 @@ cargo build --release  # release: target\release\claude-widget.exe
 
 The tray icon has the mood and character switches (for trying them out) and Quit.
 
+## Sessions
+
+`claude-widget-hook.exe` (`src-tauri/src/bin/hook.rs`) is a Claude Code hook: for every session
+event it writes what the session is doing into `%LOCALAPPDATA%\ClaudeWidget\sessions\<id>.json`
+and exits in milliseconds; it never blocks or fails Claude. The widget (`src-tauri/src/sessions.rs`)
+merges those files with Claude Desktop's own session records (`%APPDATA%\Claude\claude-code-sessions`:
+title, archived, the local id behind the `claude://claude.ai/epitaxy/<id>` link) and shows every
+session active in the last 24 hours, grouped: waiting for you, working, your turn, idle.
+
+Installing the hook by hand (until the settings window does it):
+
+1. copy `target\debug\claude-widget-hook.exe` to `%LOCALAPPDATA%\ClaudeWidget\bin\`;
+2. in `~/.claude/settings.json`, for SessionStart, SessionEnd, UserPromptSubmit, PreToolUse,
+   PostToolUse, PostToolUseFailure, Notification, PermissionRequest, Stop, SubagentStart and
+   SubagentStop add `{"matcher": "", "hooks": [{"type": "command", "command":
+   "\"C:/Users/<you>/AppData/Local/ClaudeWidget/bin/claude-widget-hook.exe\"", "timeout": 5}]}`.
+
 ## Status
 
-Step 1 of the plan: the cat on the desktop — the three modes, dragging, snapping to the
-left or right screen edge, click-through on transparent pixels, petting. The card shows sample
-sessions; real ones are step 2.
+Steps 1–2 of the plan: the cat on the desktop (three modes, dragging, snapping to the left
+or right screen edge, click-through on transparent pixels, petting) and the real sessions (live
+state and current action, Desktop titles, a click opens the session in Desktop). Limits are still
+samples — step 3.

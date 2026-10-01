@@ -3,6 +3,8 @@
 // cursor-following eyes behave the same on any monitor and any DPI.
 #![windows_subsystem = "windows"]
 
+mod sessions;
+
 use serde::Serialize;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -99,6 +101,16 @@ fn start_hint() -> (Option<String>, Option<String>) {
 }
 
 #[tauri::command]
+fn sessions(latest: State<sessions::Latest>) -> Vec<sessions::Session> {
+    latest.0.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn open_session(local: String) {
+    sessions::open_in_desktop(&local);
+}
+
+#[tauri::command]
 fn show(window: WebviewWindow) {
     let _ = window.show();
 }
@@ -134,8 +146,18 @@ fn drag_end(window: WebviewWindow, drag: State<DragOffset>) -> Poll {
 fn main() {
     tauri::Builder::default()
         .manage(DragOffset::default())
+        .manage(sessions::Latest(Mutex::new(Vec::new())))
         .invoke_handler(tauri::generate_handler![
-            poll, place, start_hint, show, ignore, drag_start, drag_move, drag_end
+            poll,
+            place,
+            start_hint,
+            sessions,
+            open_session,
+            show,
+            ignore,
+            drag_start,
+            drag_move,
+            drag_end
         ])
         .setup(|app| {
             let item = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>);
@@ -144,6 +166,7 @@ fn main() {
                 "Настрій",
                 true,
                 &[
+                    &item("mood:auto", "Авто — за сесіями")?,
                     &item("mood:idle", "Відпочиває")?,
                     &item("mood:work", "Працює")?,
                     &item("mood:ask", "Питає тебе")?,
@@ -180,6 +203,7 @@ fn main() {
                     }
                 })
                 .build(app)?;
+            sessions::spawn(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())
