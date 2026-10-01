@@ -24,7 +24,7 @@
         "focusable": false,
         "minWidth": 1,
         "minHeight": 1,
-        "visible": true
+        "visible": false
       }
     ],
     "security": {
