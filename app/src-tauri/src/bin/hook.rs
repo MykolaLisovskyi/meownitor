@@ -70,6 +70,27 @@ fn describe(tool: &str, input: &Value) -> (String, String) {
     (name, detail)
 }
 
+/// One line per event in ClaudeWidget/events.log, so what Claude actually sends can be checked;
+/// the log starts over once it passes 512 KB.
+fn log_event(dir: &std::path::Path, now: u64, sid: &str, event: &str, tool: &str) {
+    use std::io::Write;
+    let Some(base) = dir.parent() else { return };
+    let path = base.join("events.log");
+    if std::fs::metadata(&path)
+        .map(|m| m.len() > 512 * 1024)
+        .unwrap_or(false)
+    {
+        let _ = std::fs::remove_file(&path);
+    }
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+    {
+        let _ = writeln!(f, "{now} {} {event} {tool}", &sid[..sid.len().min(8)]);
+    }
+}
+
 fn main() {
     let mut buf = String::new();
     if std::io::stdin().read_to_string(&mut buf).is_err() {
@@ -114,6 +135,10 @@ fn main() {
             let (n, d) = describe(&tool, &input);
             ("run".into(), n, d)
         }
+        // A background agent can finish after the turn has ended: that must not wake a finished session.
+        "SubagentStop" if prev_state == "done" || prev_state == "idle" => {
+            (prev_state.clone(), prev_what.clone(), prev_detail.clone())
+        }
         "PostToolUse" | "PostToolUseFailure" | "SubagentStop" => {
             ("run".into(), "Думає".into(), String::new())
         }
@@ -136,7 +161,10 @@ fn main() {
     };
 
     let now = now_ms();
-    let changed = state != prev_state || what != prev_what || detail != prev_detail;
+    // The clock shows how long the session has been in its state — working since your message,
+    // waiting since it asked — not how long the current tool has been running.
+    // A new message starts a new turn even if the previous turn's Stop never arrived.
+    let changed = state != prev_state || event == "UserPromptSubmit";
     st["sid"] = json!(sid);
     st["cwd"] = json!(str_of("cwd"));
     st["event"] = json!(event);
@@ -147,6 +175,8 @@ fn main() {
     st["state"] = json!(state);
     st["what"] = json!(what);
     st["detail"] = json!(detail);
+
+    log_event(&dir, now, &sid, &event, &tool);
 
     let tmp = dir.join(format!("{sid}.{}.tmp", std::process::id()));
     if std::fs::write(&tmp, st.to_string()).is_ok() && std::fs::rename(&tmp, &path).is_err() {

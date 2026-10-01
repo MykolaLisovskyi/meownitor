@@ -3,6 +3,7 @@
 // cursor-following eyes behave the same on any monitor and any DPI.
 #![windows_subsystem = "windows"]
 
+mod limits;
 mod sessions;
 
 use serde::Serialize;
@@ -106,6 +107,11 @@ fn sessions(latest: State<sessions::Latest>) -> Vec<sessions::Session> {
 }
 
 #[tauri::command]
+fn limits(latest: State<limits::Latest>) -> limits::Limits {
+    latest.0.lock().unwrap().clone()
+}
+
+#[tauri::command]
 fn open_session(local: String) {
     sessions::open_in_desktop(&local);
 }
@@ -147,11 +153,13 @@ fn main() {
     tauri::Builder::default()
         .manage(DragOffset::default())
         .manage(sessions::Latest(Mutex::new(Vec::new())))
+        .manage(limits::Latest(Mutex::new(limits::Limits::default())))
         .invoke_handler(tauri::generate_handler![
             poll,
             place,
             start_hint,
             sessions,
+            limits,
             open_session,
             show,
             ignore,
@@ -204,6 +212,7 @@ fn main() {
                 })
                 .build(app)?;
             sessions::spawn(app.handle().clone());
+            limits::spawn(app.handle().clone());
             Ok(())
         })
         .run(tauri::generate_context!())

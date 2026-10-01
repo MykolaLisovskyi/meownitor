@@ -9,9 +9,8 @@
   var S={mode:'cat',dock:null,open:false,idleOpen:false};
   var big=Pixel.Sprite('cat','catB',3,'idle'),small=Pixel.Sprite('cat','catB',2,'idle');
 
-  // The live session list from Rust (sessions.rs); limits are still samples until step 3.
-  var LIST=[],moodOverride=null,lastDone=0;
-  var LIM=[{l:'5 годин',p:25,r:'31 хв'},{l:'Тиждень',p:34,r:'4 д 17 г'},{l:'Fable',p:5,r:'4 д 17 г'}];
+  // Live data from Rust: the session list (sessions.rs) and the plan limits (limits.rs).
+  var LIST=[],moodOverride=null,lastDone=0,LIM=null,LIMWHY='';
   var ICON={Bash:'ConsoleLine',PowerShell:'ConsoleLine',Edit:'PencilOutline',Write:'PencilOutline',MultiEdit:'PencilOutline',NotebookEdit:'PencilOutline',Read:'FileDocumentOutline',Grep:'Magnify',Glob:'Magnify',WebFetch:'Internet',WebSearch:'Internet',Task:'Magic',Agent:'Magic','Агент':'Magic',Skill:'Magic','Думає':'Loading','Питає тебе':'HelpCircleOutline','Готово — твоя черга':'CheckCircleOutline','Зупинилась з помилкою':'AlertCircleOutline'};
 
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -22,6 +21,32 @@
     var s=Math.max(0,Math.floor((Date.now()-since)/1000));
     if(s<60)return s+' с';var m=Math.floor(s/60);if(m<60)return m+' хв';
     var h=Math.floor(m/60);if(h<24)return h+' г'+(m%60?' '+(m%60)+' хв':'');return 'вчора';
+  }
+  function until(ts){
+    var m=Math.max(0,Math.round((ts-Date.now())/60000));
+    if(m<60)return m+' хв';var h=Math.floor(m/60);if(h<24)return h+' г'+(m%60?' '+(m%60)+' хв':'');
+    var d=Math.floor(h/24);return d+' д'+(h%24?' '+(h%24)+' г':'');
+  }
+  // The usage response lists the limits the way Desktop's usage card shows them: `limits` —
+  // session (5 hours), weekly_all, weekly_scoped per model — each with a percent and a reset time.
+  // Older responses only had five_hour / seven_day objects with a utilization; those are the fallback.
+  function normLimits(d){
+    if(d&&Array.isArray(d.limits)&&d.limits.length)return d.limits.filter(function(x){return typeof x.percent==='number';}).map(function(x){
+      var name=x.kind==='session'?'5 годин':x.kind==='weekly_all'?'Тиждень':(x.scope&&x.scope.model&&x.scope.model.display_name)||x.kind;
+      return {l:name,p:Math.round(x.percent),r:Date.parse(x.resets_at)};
+    });
+    var keys=Object.keys(d||{}).filter(function(k){return d[k]&&typeof d[k]==='object'&&typeof d[k].utilization==='number'&&/^(five_hour|seven_day)/.test(k);});
+    keys.sort(function(a,b){var o=function(k){return k==='five_hour'?0:k==='seven_day'?1:2;};return o(a)-o(b)||a.localeCompare(b);});
+    return keys.map(function(k){
+      var v=d[k],r=v.resets_at,label=k==='five_hour'?'5 годин':k==='seven_day'?'Тиждень':k.replace('seven_day_','');
+      label=label.charAt(0).toUpperCase()+label.slice(1);
+      return {l:label,p:Math.round(v.utilization),r:typeof r==='number'?(r<1e12?r*1000:r):Date.parse(r)};
+    });
+  }
+  function maxLim(){return LIM&&LIM.length?LIM.reduce(function(a,b){return b.p>a.p?b:a;}):null;}
+  function limHTML(){
+    if(!LIM||!LIM.length)return '<div class="lim"><div class="nolim">'+(LIMWHY==='net'?'Ліміти: нема з’єднання':'Ліміти: увійди в Claude Code — <code>claude</code> у терміналі')+'</div></div>';
+    return '<div class="lim">'+LIM.map(function(l){return '<div class="lr"><span class="ll">'+esc(l.l)+'</span><span class="lp">'+l.p+'%</span><span class="lb"><i style="width:'+Math.min(100,l.p)+'%;background:'+col(l.p)+'"></i></span><span class="rs">'+ic('Autorenew')+'<span data-reset="'+l.r+'">'+until(l.r)+'</span></span></div>';}).join('')+'</div>';
   }
   function iconFor(s){if(s.what.indexOf('Чекає дозволу')===0)return 'KeyOutline';return ICON[s.what]||(s.state==='wait'?'HelpCircleOutline':'ConsoleLine');}
   function row(s){
@@ -39,14 +64,14 @@
       '<div class="ss">'+grp('Чекають на тебе',by('wait'))+grp('Працюють',by('run'))+grp('Твоя черга',by('done'))+
       (idle.length?'<button type="button" class="grp'+(S.idleOpen?' open':'')+'" data-act="idle">'+ic('ChevronRight')+'Неактивні<span class="n">'+idle.length+'</span></button>'+(S.idleOpen?idle.map(row).join(''):''):'')+
       (LIST.length?'':'<div class="empty">Сесій за добу нема</div>')+'</div>'+
-      '<div class="lim">'+LIM.map(function(l){return '<div class="lr"><span class="ll">'+l.l+'</span><span class="lp">'+l.p+'%</span><span class="lb"><i style="width:'+l.p+'%;background:'+col(l.p)+'"></i></span><span class="rs">'+ic('Autorenew')+l.r+'</span></div>';}).join('')+'</div>'+
-      '<div class="demo">ліміти поки зразкові — справжні на кроці 3</div></div>';
+      limHTML()+'</div>';
   }
-  function strip(edge){var m=LIM.reduce(function(a,b){return b.p>a.p?b:a;});var act=active();return '<div class="strip e'+edge+'">'+(act.length?act.map(function(s){return '<span class="dot '+s.state+'"></span>';}).join(''):'<span class="dot"></span>')+'<span class="vb"><i style="height:'+m.p+'%;background:'+col(m.p)+'"></i></span></div>';}
+  function strip(edge){var m=maxLim(),act=active();return '<div class="strip e'+edge+'">'+(act.length?act.map(function(s){return '<span class="dot '+s.state+'"></span>';}).join(''):'<span class="dot"></span>')+(m?'<span class="vb"><i style="height:'+Math.min(100,m.p)+'%;background:'+col(m.p)+'"></i></span>':'')+'</div>';}
   // The cat's mood follows the sessions: someone waiting for you beats everything, then work;
   // a session that just finished gets a little jump; long silence puts the cat to sleep.
   function autoMood(){
     if(by('wait').length)return 'ask';
+    var m=maxLim();if(m&&m.p>=85)return 'tired';
     if(by('run').length)return 'work';
     if(Date.now()-lastDone<6000)return 'done';
     var newest=LIST.reduce(function(m,s){return Math.max(m,s.since);},0);
@@ -178,8 +203,11 @@
     if(!drag)refresh();
   }
   listen('sessions',function(ev){onData(ev.payload);});
+  function setLimits(l){if(l&&l.status==='ok'){LIM=normLimits(l.data);LIMWHY='';}else{LIM=null;LIMWHY=l?l.status:'';}applyMood();if(!drag)refresh();}
+  listen('limits',function(ev){setLimits(ev.payload);});
   setInterval(function(){
     root.querySelectorAll('.tm[data-since]').forEach(function(t){t.textContent=ago(+t.getAttribute('data-since'));});
+    root.querySelectorAll('[data-reset]').forEach(function(t){t.textContent=until(+t.getAttribute('data-reset'));});
     applyMood();
   },1000);
 
@@ -195,7 +223,7 @@
     if(how==='card')S.mode='card';
     if(how.indexOf('dock-')===0){S.dock=how.charAt(5);S.open=/open$/.test(how);S.hold=S.open;}
     if(hint[1])moodOverride=hint[1];
-    LIST=await invoke('sessions');applyMood();
+    LIST=await invoke('sessions');setLimits(await invoke('limits'));applyMood();
     render();align();
     var p=await invoke('poll'),sc=p.scale,z=measure(sc),k=p.work;
     await fit(k.x+k.w-z.w-48*sc,k.y+k.h-z.h-48*sc);
