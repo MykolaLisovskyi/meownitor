@@ -29,6 +29,8 @@ pub struct Session {
     detail: String,
     since: u64,
     cwd: String,
+    /// A question round waiting for an answer (rounds.rs), by name.
+    round: Option<String>,
 }
 
 pub struct Latest(pub Mutex<Vec<Session>>);
@@ -187,7 +189,12 @@ fn folder_name(cwd: &str) -> String {
         .to_string()
 }
 
-fn compose(hooks: &Cache<Hooked>, desk: &Cache<Desk>, now: u64) -> Vec<Session> {
+fn compose(
+    hooks: &Cache<Hooked>,
+    desk: &Cache<Desk>,
+    rounds: &[crate::rounds::Pending],
+    now: u64,
+) -> Vec<Session> {
     let mut map: HashMap<String, Session> = HashMap::new();
     let mut archived: Vec<String> = Vec::new();
     for (cli, d) in desk.values() {
@@ -213,6 +220,7 @@ fn compose(hooks: &Cache<Hooked>, desk: &Cache<Desk>, now: u64) -> Vec<Session> 
                 detail: String::new(),
                 since: d.last,
                 cwd: d.cwd.clone(),
+                round: None,
             },
         );
     }
@@ -239,6 +247,7 @@ fn compose(hooks: &Cache<Hooked>, desk: &Cache<Desk>, now: u64) -> Vec<Session> 
             detail: String::new(),
             since: 0,
             cwd: h.cwd.clone(),
+            round: None,
         });
         e.since = if state == "idle" {
             e.since.max(h.updated)
@@ -256,6 +265,25 @@ fn compose(hooks: &Cache<Hooked>, desk: &Cache<Desk>, now: u64) -> Vec<Session> 
             h.detail.clone()
         };
         e.state = state;
+    }
+    // A pending round outranks whatever the hook last said: the session is waiting for you.
+    for r in rounds {
+        let e = map.entry(r.sid.clone()).or_insert_with(|| Session {
+            sid: r.sid.clone(),
+            local: None,
+            title: format!("Сесія {}", &r.sid[..r.sid.len().min(8)]),
+            state: String::new(),
+            what: String::new(),
+            detail: String::new(),
+            since: 0,
+            cwd: String::new(),
+            round: None,
+        });
+        e.state = "wait".into();
+        e.what = "Питає тебе".into();
+        e.detail = r.title.clone();
+        e.since = r.since;
+        e.round = Some(r.name.clone());
     }
     let mut list: Vec<Session> = map.into_values().collect();
     list.sort_by(|a, b| b.since.cmp(&a.since));
@@ -284,7 +312,7 @@ pub fn spawn(app: AppHandle) {
                 }
                 last_desk = Instant::now();
             }
-            let list = compose(&hooks, &desk, now_ms());
+            let list = compose(&hooks, &desk, &crate::rounds::pending(), now_ms());
             if last_sent.as_ref() != Some(&list) {
                 if let Some(latest) = app.try_state::<Latest>() {
                     *latest.0.lock().unwrap() = list.clone();

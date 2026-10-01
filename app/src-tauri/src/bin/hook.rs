@@ -91,7 +91,69 @@ fn log_event(dir: &std::path::Path, now: u64, sid: &str, event: &str, tool: &str
     }
 }
 
+/// `where` and `wait`: the two calls a Claude session makes to ask through the widget.
+/// `where` prints (and creates) this session's round folder; the session writes <name>.html there.
+/// `wait <name>` blocks until the user sends the answer, prints it and exits — run it in the
+/// background, its exit is what brings the session back. The session id comes from the
+/// CLAUDE_CODE_SESSION_ID that Claude Code gives every command it runs.
+fn round_command(args: &[String]) -> Option<i32> {
+    let cmd = args.get(1)?.as_str();
+    if cmd != "where" && cmd != "wait" {
+        return None;
+    }
+    let sid = std::env::var("CLAUDE_CODE_SESSION_ID").unwrap_or_default();
+    if sid.is_empty()
+        || !sid
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        eprintln!("CLAUDE_CODE_SESSION_ID is not set — run this from a Claude Code session");
+        return Some(2);
+    }
+    let dir = state_dir()?.parent()?.join("rounds").join(&sid);
+    let _ = std::fs::create_dir_all(&dir);
+    if cmd == "where" {
+        println!("{}", dir.display());
+        return Some(0);
+    }
+    let name = args
+        .get(2)
+        .map(|n| n.trim_end_matches(".html").to_string())
+        .unwrap_or_default();
+    if name.is_empty()
+        || !name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        eprintln!("usage: claude-widget-hook wait <round-name>   (letters, digits, - and _)");
+        return Some(2);
+    }
+    if !dir.join(format!("{name}.html")).exists() {
+        eprintln!("no round {name}.html in {}", dir.display());
+        return Some(2);
+    }
+    let answer = dir.join(format!("{name}.answer.md"));
+    let hours: u64 = args.get(3).and_then(|h| h.parse().ok()).unwrap_or(8);
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(hours * 3600);
+    while std::time::Instant::now() < deadline {
+        if let Ok(text) = std::fs::read_to_string(&answer) {
+            println!(
+                "ANSWER to {name}:
+{text}"
+            );
+            return Some(0);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    println!("No answer to {name} — gave up waiting.");
+    Some(1)
+}
+
 fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(code) = round_command(&args) {
+        std::process::exit(code);
+    }
     let mut buf = String::new();
     if std::io::stdin().read_to_string(&mut buf).is_err() {
         return;

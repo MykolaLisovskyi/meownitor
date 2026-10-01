@@ -4,6 +4,7 @@
 #![windows_subsystem = "windows"]
 
 mod limits;
+mod rounds;
 mod sessions;
 
 use serde::Serialize;
@@ -91,13 +92,15 @@ fn place(window: WebviewWindow, x: i32, y: i32, w: u32, h: u32) {
     let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
-/// How to start: `CLAUDE_WIDGET_START` (card, dock-l, dock-r, dock-r-open) and `CLAUDE_WIDGET_MOOD` —
+/// How to start: `CLAUDE_WIDGET_START` (card, dock-l, dock-r, dock-r-open), `CLAUDE_WIDGET_MOOD` and
+/// `CLAUDE_WIDGET_ROUND` (<session id>/<round name>, opened right away) —
 /// so every mode can be opened and captured without touching the mouse.
 #[tauri::command]
-fn start_hint() -> (Option<String>, Option<String>) {
+fn start_hint() -> (Option<String>, Option<String>, Option<String>) {
     (
         std::env::var("CLAUDE_WIDGET_START").ok(),
         std::env::var("CLAUDE_WIDGET_MOOD").ok(),
+        std::env::var("CLAUDE_WIDGET_ROUND").ok(),
     )
 }
 
@@ -109,6 +112,18 @@ fn sessions(latest: State<sessions::Latest>) -> Vec<sessions::Session> {
 #[tauri::command]
 fn limits(latest: State<limits::Latest>) -> limits::Limits {
     latest.0.lock().unwrap().clone()
+}
+
+// Async on purpose: creating a window from a synchronous command deadlocks on Windows.
+#[tauri::command]
+async fn open_round(
+    app: tauri::AppHandle,
+    window: WebviewWindow,
+    sid: String,
+    name: String,
+    title: String,
+) -> Result<(), String> {
+    rounds::open(&app, &window, &sid, &name, &title)
 }
 
 #[tauri::command]
@@ -151,6 +166,7 @@ fn drag_end(window: WebviewWindow, drag: State<DragOffset>) -> Poll {
 
 fn main() {
     tauri::Builder::default()
+        .register_uri_scheme_protocol("round", rounds::handle)
         .manage(DragOffset::default())
         .manage(sessions::Latest(Mutex::new(Vec::new())))
         .manage(limits::Latest(Mutex::new(limits::Limits::default())))
@@ -160,6 +176,7 @@ fn main() {
             start_hint,
             sessions,
             limits,
+            open_round,
             open_session,
             show,
             ignore,

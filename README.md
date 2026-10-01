@@ -38,9 +38,23 @@ Installing the hook by hand (until the settings window does it):
    SubagentStop add `{"matcher": "", "hooks": [{"type": "command", "command":
    "\"C:/Users/<you>/AppData/Local/ClaudeWidget/bin/claude-widget-hook.exe\"", "timeout": 5}]}`.
 
+## Limits
+
+`src-tauri/src/limits.rs` makes the request Claude Code's `/usage` makes (`GET /api/oauth/usage`) once
+a minute — an account query, not a model call. It uses Claude Code's sign-in from
+`~/.claude/.credentials.json` (run `claude` and `/login` once) and refreshes the token the way Claude
+Code does, writing it back.
+
+## Questions
+
+A session asks through the widget with the `widget-round` skill (`skill/widget-round`, installed in
+`~/.claude/skills`): it writes one self-contained HTML page into its round folder
+(`claude-widget-hook.exe where`) and runs `claude-widget-hook.exe wait <name>` in the background. The
+widget shows the session as asking and chirps; «Відповісти» opens the page in a window centred on the
+widget's monitor (served through the `round` scheme, `src-tauri/src/rounds.rs`); the page's
+«Надіслати» POSTs `/answer`, the answer lands in `<name>.answer.md` and the waiter hands it back.
+
 ## Status
 
-Steps 1–2 of the plan: the cat on the desktop (three modes, dragging, snapping to the left
-or right screen edge, click-through on transparent pixels, petting) and the real sessions (live
-state and current action, Desktop titles, a click opens the session in Desktop). Limits are still
-samples — step 3.
+Steps 1–4 of the plan: the cat on the desktop, the real sessions, the plan limits and questions
+through the widget. Next: settings (character, sound, start with Windows, hook install) and macOS.

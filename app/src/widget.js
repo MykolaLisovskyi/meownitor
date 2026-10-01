@@ -52,7 +52,8 @@
   function row(s){
     var h='<div class="row '+s.state+'" data-local="'+esc(s.local||'')+'"><span class="dot '+s.state+'"></span><div class="tx"><div class="l1"><span class="nm">'+esc(s.title)+'</span><span class="tm" data-since="'+s.since+'">'+ago(s.since)+'</span></div>';
     if(s.state!=='idle')h+='<div class="ac">'+ic(iconFor(s))+'<span class="at">'+esc(s.what+(s.detail?' · '+s.detail:''))+'</span></div>';
-    if(s.state==='wait'&&s.local)h+='<div class="qa"><button type="button" class="qbtn" data-act="open">'+ic('HelpCircleOutline')+'Відкрити в Desktop</button></div>';
+    if(s.round)h+='<div class="qa"><button type="button" class="qbtn" data-act="round" data-sid="'+esc(s.sid)+'" data-round="'+esc(s.round)+'" data-title="'+esc(s.title)+'">'+ic('HelpCircleOutline')+'Відповісти</button></div>';
+    else if(s.state==='wait'&&s.local)h+='<div class="qa"><button type="button" class="qbtn" data-act="open">'+ic('HelpCircleOutline')+'Відкрити в Desktop</button></div>';
     return h+'</div></div>';
   }
   function by(k){return LIST.filter(function(s){return s.state===k;});}
@@ -186,6 +187,7 @@
     if(act==='min'){S.mode='cat';await relayout('toCat');}
     else if(act==='idle'){S.idleOpen=!S.idleOpen;await relayout();}
     else if(act==='open'&&r&&r.dataset.local)invoke('open_session',{local:r.dataset.local});
+    else if(act==='round')invoke('open_round',{sid:a.dataset.sid,name:a.dataset.round,title:a.dataset.title});
   });
 
   // New data: re-render what is on screen; resize the window only when the content's size changed,
@@ -196,9 +198,14 @@
     render();align();
     var z=measure(sc);if(z.w!==bz.w||z.h!==bz.h)await fit(bx,by0);
   }
+  // The widget's only sound: a short chirp when a session starts waiting for you.
+  var audio=null,primed=false;
+  function chirp(){try{audio=audio||new AudioContext();[[660,0,.16],[880,.14,.24]].forEach(function(t){var o=audio.createOscillator(),g=audio.createGain(),at=audio.currentTime+t[1];o.frequency.setValueAtTime(t[0],at);g.gain.setValueAtTime(0,at);g.gain.linearRampToValueAtTime(.16,at+.02);g.gain.exponentialRampToValueAtTime(.001,at+t[2]);o.connect(g);g.connect(audio.destination);o.start(at);o.stop(at+t[2]+.05);});}catch(e){}}
   function onData(list){
-    var wasDone={};LIST.forEach(function(x){if(x.state==='done')wasDone[x.sid]=1;});
+    var wasDone={},wasWait={};LIST.forEach(function(x){if(x.state==='done')wasDone[x.sid]=1;if(x.state==='wait')wasWait[x.sid+'|'+(x.round||x.what)]=1;});
     if(list.some(function(x){return x.state==='done'&&!wasDone[x.sid];})&&LIST.length)lastDone=Date.now();
+    if(primed&&list.some(function(x){return x.state==='wait'&&!wasWait[x.sid+'|'+(x.round||x.what)];}))chirp();
+    primed=true;
     LIST=list||[];applyMood();
     if(!drag)refresh();
   }
@@ -224,6 +231,7 @@
     if(how.indexOf('dock-')===0){S.dock=how.charAt(5);S.open=/open$/.test(how);S.hold=S.open;}
     if(hint[1])moodOverride=hint[1];
     LIST=await invoke('sessions');setLimits(await invoke('limits'));applyMood();
+    if(hint[2]){var rp=hint[2].split('/');invoke('open_round',{sid:rp[0],name:rp[1],title:'перевірка'});}
     render();align();
     var p=await invoke('poll'),sc=p.scale,z=measure(sc),k=p.work;
     await fit(k.x+k.w-z.w-48*sc,k.y+k.h-z.h-48*sc);

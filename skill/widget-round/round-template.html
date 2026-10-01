@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- The title is what the widget shows in the session's row and in the window title: keep it short. -->
+<title>Коротка назва питання</title>
+<style>
+:root{--page:#0E131C;--card:#141C2B;--box:#111926;--line:#26324A;--line2:#35435D;--ink:#F2F6FF;--ink2:#C3CCDB;--ink3:#8E9AAE;--primary:#54A9FF;--primary-weak:rgba(84,169,255,.15);--ok:#5DC264;--ok-weak:rgba(93,194,100,.16);--danger:#FC725A;--font:"Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme: light){:root{--page:#EEF1F5;--card:#FFFFFF;--box:#F8F9FB;--line:#E1E5EA;--line2:#CBD2DA;--ink:#1C1F23;--ink2:#4B5462;--ink3:#7C8694;--primary:#0064FA;--primary-weak:rgba(0,100,250,.09);--ok:#2E9E3C;--ok-weak:rgba(59,179,70,.13);--danger:#E0331B}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--ink);font:14px/1.5 var(--font)}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 22px 90px}
+h1{font-size:20px;font-weight:600;margin:0 0 12px}
+.ctx{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:18px}
+.ctx .k{font-size:12px;font-weight:600;color:var(--ink3);text-transform:uppercase;letter-spacing:.03em;margin-top:6px}
+.ctx .k:first-child{margin-top:0}
+.ctx p,.ctx ul{margin:4px 0 0;color:var(--ink2)}
+.q{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px}
+.q h2{font-size:16px;font-weight:600;margin:0 0 4px}
+.q .qs{color:var(--ink2);margin:0 0 12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.card{border:1px solid var(--line);border-radius:10px;background:var(--box);padding:12px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card.wide{grid-column:1 / -1}
+.card.picked{border-color:var(--primary);box-shadow:0 0 0 1px var(--primary)}
+.ch{display:flex;align-items:center;gap:8px;font-weight:600}
+.ch .l{width:24px;height:24px;border-radius:6px;background:var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+.card.picked .ch .l{background:var(--primary);color:#fff}
+.rec{font-size:11.5px;padding:1px 8px;border-radius:10px;background:var(--ok-weak);color:var(--ok)}
+.pick{margin-left:auto;height:28px;padding:0 12px;border-radius:6px;border:1px solid var(--line2);background:var(--card);color:var(--ink);cursor:pointer;font:inherit;font-size:12.5px}
+.card.picked .pick{background:var(--primary);border-color:var(--primary);color:#fff}
+.vis{background:var(--page);border:1px solid var(--line);border-radius:8px;min-height:120px;overflow:hidden;position:relative}
+.pc{font-size:13px;color:var(--ink2)}
+.pc .p::before{content:"+ ";color:var(--ok);font-weight:600}
+.pc .m::before{content:"− ";color:var(--danger);font-weight:600}
+textarea{width:100%;min-height:44px;margin-top:10px;border:1px solid var(--line2);border-radius:8px;background:var(--box);color:var(--ink);font:13px/1.5 var(--font);padding:8px 10px;resize:vertical}
+.foot{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 22px;display:flex;align-items:center;gap:14px}
+.foot .msg{flex:1;color:var(--ink2)}
+.foot .msg.err{color:var(--danger)}
+.foot .msg.ok{color:var(--ok)}
+.send{height:36px;padding:0 20px;border-radius:8px;border:0;background:var(--primary);color:#fff;font:600 14px var(--font);cursor:pointer}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Коротка назва питання</h1>
+
+  <div class="ctx">
+    <div class="k">Що обираємо</div>
+    <p>Один-два речення: що вирішуємо і навіщо.</p>
+    <div class="k">На що звернути увагу</div>
+    <ul><li>перша річ</li><li>друга річ</li></ul>
+  </div>
+
+  <!-- One .q per question; data-q is the question's number in the answer. -->
+  <div class="q" data-q="1">
+    <h2>1 · Питання?</h2>
+    <p class="qs">Контекст саме цього питання — факти, з яких обираємо.</p>
+    <div class="grid">
+      <!-- One .card per option; data-v is the option's letter in the answer. Add class "wide" to give a
+           big visual the whole row. Draw the option itself inside .vis: HTML, inline SVG or a canvas. -->
+      <div class="card" data-v="A">
+        <div class="ch"><span class="l">A</span>Назва варіанта<span class="rec">раджу</span><button type="button" class="pick">Обрати</button></div>
+        <div class="vis"></div>
+        <div class="pc"><div class="p">плюс</div><div class="m">мінус</div></div>
+      </div>
+      <div class="card" data-v="B">
+        <div class="ch"><span class="l">B</span>Назва варіанта<button type="button" class="pick">Обрати</button></div>
+        <div class="vis"></div>
+        <div class="pc"><div class="p">плюс</div><div class="m">мінус</div></div>
+      </div>
+    </div>
+    <textarea placeholder="Свій варіант або коментар"></textarea>
+  </div>
+</div>
+
+<div class="foot"><span class="msg" id="msg">Обери варіанти і/або напиши коментар.</span><button type="button" class="send" id="send">Надіслати</button></div>
+
+<script>
+(function(){
+  var msg=document.getElementById('msg');
+  document.querySelectorAll('.q').forEach(function(q){q.querySelectorAll('.pick').forEach(function(b){b.addEventListener('click',function(){
+    var c=b.closest('.card'),on=!c.classList.contains('picked');
+    q.querySelectorAll('.card').forEach(function(x){x.classList.remove('picked');var p=x.querySelector('.pick');if(p)p.textContent='Обрати';});
+    if(on){c.classList.add('picked');b.textContent='Обрано';}
+    msg.className='msg';msg.textContent='Обери варіанти і/або напиши коментар.';
+  });});});
+  // The answer goes to the widget (POST /answer), which hands it to the waiting session.
+  document.getElementById('send').addEventListener('click',function(){
+    var lines=[document.title],any=false;
+    document.querySelectorAll('.q').forEach(function(q){
+      var pk=q.querySelector('.card.picked'),t=(q.querySelector('textarea')||{value:''}).value.trim();
+      lines.push(q.getAttribute('data-q')+' — '+(pk?pk.getAttribute('data-v'):'без вибору'));
+      if(pk)any=true;if(t){any=true;lines.push('  коментар: '+t);}
+    });
+    if(!any){msg.className='msg err';msg.textContent='Обери хоча б один варіант або напиши коментар.';return;}
+    var send=document.getElementById('send');send.disabled=true;
+    fetch('/answer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({page:location.pathname,text:lines.join('\n')})})
+      .then(function(r){if(!r.ok)throw 0;msg.className='msg ok';msg.textContent='Надіслано — Claude уже бачить відповідь.';})
+      .catch(function(){send.disabled=false;msg.className='msg err';msg.textContent='Не вдалося надіслати — віджет закритий?';});
+  });
+})();
+</script>
+</body>
+</html>
