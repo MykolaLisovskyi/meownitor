@@ -32,6 +32,8 @@ answer reaches you through a background waiter — no polling, no copy-paste.
 
    One file, fully self-contained: inline CSS, JS and SVG, no CDN or network. UI text in the user's
    language. Keep the template's send script: it POSTs `{page: location.pathname, text}` to `/answer`.
+   A page a project already made that links shared files (a design kit) can go too — as a
+   self-contained copy with those files inlined, as long as its send button POSTs the same `/answer`.
    Technical choices the user never sees are yours to make — don't ask them.
 
 3. **Wait in the background** (Bash with `run_in_background: true`):

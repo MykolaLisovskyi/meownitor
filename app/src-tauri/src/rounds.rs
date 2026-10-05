@@ -152,9 +152,74 @@ pub fn open<R: Runtime>(
             std::thread::sleep(Duration::from_millis(600));
             let _ = w2.set_always_on_top(false);
         });
+        follow_layout(app, &w, label);
     }
     Ok(())
 }
+
+/// The page takes keys in WebView2's own process, and Windows gives a layout to one thread at a
+/// time: to this app's when the window comes forward (the page kept an old one), to the page's when
+/// the language is switched in it (the language bar, which follows this app's, stayed put while the
+/// page typed in the other). While the round window is in front, whichever of the two changed
+/// hands its layout to the other.
+#[cfg(windows)]
+fn follow_layout<R: Runtime>(app: &AppHandle<R>, w: &WebviewWindow<R>, label: &str) {
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        ActivateKeyboardLayout, GetKeyboardLayout,
+    };
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetGUIThreadInfo, GetWindowThreadProcessId, PostMessageW,
+        GUITHREADINFO, WM_INPUTLANGCHANGEREQUEST,
+    };
+    let Ok(hwnd) = w.hwnd() else { return };
+    let top = hwnd.0 as isize;
+    let (app, label) = (app.clone(), label.to_string());
+    std::thread::spawn(move || {
+        let tid = unsafe { GetWindowThreadProcessId(top as _, std::ptr::null_mut()) };
+        // The page's focused window and its thread, while the focus is in the page.
+        let page = || unsafe {
+            let mut gi: GUITHREADINFO = std::mem::zeroed();
+            gi.cbSize = std::mem::size_of::<GUITHREADINFO>() as u32;
+            let mut pid = 0;
+            if GetGUIThreadInfo(tid, &mut gi) == 0 || gi.hwndFocus.is_null() {
+                return None;
+            }
+            let ptid = GetWindowThreadProcessId(gi.hwndFocus, &mut pid);
+            (pid != std::process::id()).then_some((gi.hwndFocus as isize, ptid))
+        };
+        // (window, page) layouts when they last agreed; None until the window is in front.
+        let mut agreed: Option<(isize, isize)> = None;
+        while app.get_webview_window(&label).is_some() {
+            std::thread::sleep(Duration::from_millis(50));
+            let Some((focus, ptid)) =
+                page().filter(|_| unsafe { GetForegroundWindow() } as isize == top)
+            else {
+                agreed = None;
+                continue;
+            };
+            let (win, pg) = unsafe {
+                (
+                    GetKeyboardLayout(tid) as isize,
+                    GetKeyboardLayout(ptid) as isize,
+                )
+            };
+            if win == pg {
+                agreed = Some((win, pg));
+            } else if agreed.is_some_and(|(_, was)| was != pg) {
+                // Switched in the page: the window (and with it the language bar) follows.
+                let _ = app.run_on_main_thread(move || unsafe {
+                    ActivateKeyboardLayout(pg as _, 0);
+                });
+            } else {
+                // Came forward with the layout Windows gave the window: the page follows.
+                unsafe { PostMessageW(focus as _, WM_INPUTLANGCHANGEREQUEST, 0, win) };
+            }
+        }
+    });
+}
+
+#[cfg(not(windows))]
+fn follow_layout<R: Runtime>(_: &AppHandle<R>, _: &WebviewWindow<R>, _: &str) {}
 
 fn reply(status: u16, mime: &str, body: Vec<u8>) -> Response<Vec<u8>> {
     Response::builder()
