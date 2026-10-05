@@ -14,7 +14,7 @@
   var minis={};Object.keys(KINDS).forEach(function(k){minis[k]=Pixel.Sprite(KINDS[k][0],KINDS[k][1],2,'idle');});
 
   // Live data from Rust: the session list (sessions.rs) and the plan limits (limits.rs).
-  var LIST=[],moodOverride=null,lastDone=0,LIM=null,LIMWHY='';
+  var LIST=[],moodOverride=null,lastDone=0,LIM=null,LIMWHY='',LIMAT=0;
   var ICON={Bash:'ConsoleLine',PowerShell:'ConsoleLine',Edit:'PencilOutline',Write:'PencilOutline',MultiEdit:'PencilOutline',NotebookEdit:'PencilOutline',Read:'FileDocumentOutline',Grep:'Magnify',Glob:'Magnify',WebFetch:'Internet',WebSearch:'Internet',Task:'Magic',Agent:'Magic','Агент':'Magic',Skill:'Magic','Думає':'Loading','Питає тебе':'HelpCircleOutline','Готово — твоя черга':'CheckCircleOutline','Зупинилась з помилкою':'AlertCircleOutline'};
 
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
@@ -49,9 +49,12 @@
   }
   function maxLim(){return LIM&&LIM.length?LIM.reduce(function(a,b){return b.p>a.p?b:a;}):null;}
   function limHTML(){
-    if(!LIM||!LIM.length)return '<div class="lim"><div class="nolim">'+(LIMWHY==='net'?'Ліміти: нема з’єднання':'Ліміти: увійди в Claude Code — <code>claude</code> у терміналі')+'</div></div>';
-    return '<div class="lim">'+LIM.map(function(l){return '<div class="lr"><span class="ll">'+esc(l.l)+'</span><span class="lp">'+l.p+'%</span><span class="lb"><i style="width:'+Math.min(100,l.p)+'%;background:'+col(l.p)+'"></i></span><span class="rs">'+ic('Autorenew')+'<span data-reset="'+l.r+'">'+until(l.r)+'</span></span></div>';}).join('')+'</div>';
+    if(!LIM||!LIM.length)return '<div class="lim"><div class="nolim">Ліміти: '+(LIMWHY==='net'?'нема з’єднання':LIMWHY==='busy'?'сервер просить зачекати, спробую пізніше':LIMWHY==='login'?'увійди в Claude Code — <code>claude</code> у терміналі':'…')+'</div></div>';
+    // Through a hiccup (busy / net) the last numbers stay; once they are a few minutes old, say so.
+    var stale=LIMWHY!=='ok'&&Date.now()-LIMAT>5*60000?'<div class="nolim st">Оновлено <span data-ago="'+LIMAT+'">'+agoTxt(LIMAT)+'</span></div>':'';
+    return '<div class="lim">'+LIM.map(function(l){return '<div class="lr"><span class="ll">'+esc(l.l)+'</span><span class="lp">'+l.p+'%</span><span class="lb"><i style="width:'+Math.min(100,l.p)+'%;background:'+col(l.p)+'"></i></span><span class="rs">'+ic('Autorenew')+'<span data-reset="'+l.r+'">'+until(l.r)+'</span></span></div>';}).join('')+stale+'</div>';
   }
+  function agoTxt(t){var a=ago(t);return a==='вчора'?a:a+' тому';}
   function iconFor(s){if(s.what.indexOf('Чекає дозволу')===0)return 'KeyOutline';return ICON[s.what]||(s.state==='wait'?'HelpCircleOutline':'ConsoleLine');}
   function row(s){
     var h='<div class="row '+s.state+'" data-local="'+esc(s.local||'')+'"><span class="dot '+s.state+'"></span><div class="tx"><div class="l1"><span class="nm">'+esc(s.title)+'</span><span class="tm" data-since="'+s.since+'">'+ago(s.since)+'</span></div>';
@@ -250,11 +253,12 @@
     if(!drag)refresh();
   }
   listen('sessions',function(ev){onData(ev.payload);});
-  function setLimits(l){if(l&&l.status==='ok'){LIM=normLimits(l.data);LIMWHY='';}else{LIM=null;LIMWHY=l?l.status:'';}applyMood();if(!drag)refresh();}
+  function setLimits(l){l=l||{};LIM=l.data&&l.status!=='login'?normLimits(l.data):null;LIMWHY=l.status||'';LIMAT=l.at||0;applyMood();if(!drag)refresh();}
   listen('limits',function(ev){setLimits(ev.payload);});
   setInterval(function(){
     root.querySelectorAll('.tm[data-since]').forEach(function(t){t.textContent=ago(+t.getAttribute('data-since'));});
     root.querySelectorAll('[data-reset]').forEach(function(t){t.textContent=until(+t.getAttribute('data-reset'));});
+    root.querySelectorAll('[data-ago]').forEach(function(t){t.textContent=agoTxt(+t.getAttribute('data-ago'));});
     applyMood();
   },1000);
 

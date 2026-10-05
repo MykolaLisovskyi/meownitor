@@ -43,7 +43,9 @@ Installing the hook by hand (until the settings window does it):
 `src-tauri/src/limits.rs` makes the request Claude Code's `/usage` makes (`GET /api/oauth/usage`) once
 a minute — an account query, not a model call. It uses Claude Code's sign-in from
 `~/.claude/.credentials.json` (run `claude` and `/login` once) and refreshes the token the way Claude
-Code does, writing it back.
+Code does, writing it back. The endpoint is rate-limited per account (Claude Code and Desktop query
+it too): a 429 or a 5xx keeps the last numbers on the card and doubles the pause, up to 10 minutes;
+only a 401/403 that a fresh token does not cure means the sign-in is gone.
 
 ## Questions
 
