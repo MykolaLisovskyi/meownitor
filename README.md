@@ -54,7 +54,20 @@ widget shows the session as asking and chirps; «Відповісти» opens th
 widget's monitor (served through the `round` scheme, `src-tauri/src/rounds.rs`); the page's
 «Надіслати» POSTs `/answer`, the answer lands in `<name>.answer.md` and the waiter hands it back.
 
+## Settings
+
+The gear in the card's header turns the card over: the character (live miniatures), the ask sound,
+start with Windows (`tauri-plugin-autostart`), and the Claude Code hook — installed or removed with a
+confirmation; `src-tauri/src/hooks.rs` touches only its own entries, keeps the file's key order and
+backs the file up before every write (`cargo test --bin claude-widget hooks`). The character, the
+sound, the idle group and where the widget was left (mode, edge, position) live in
+`%LOCALAPPDATA%\ClaudeWidget\config.json`.
+
+The everyday copy runs from `%LOCALAPPDATA%\ClaudeWidget\app\` (`claude-widget.exe` and
+`claude-widget-hook.exe` from `target\release`), so start-with-Windows points at a place a rebuild
+does not touch.
+
 ## Status
 
-Steps 1–4 of the plan: the cat on the desktop, the real sessions, the plan limits and questions
-through the widget. Next: settings (character, sound, start with Windows, hook install) and macOS.
+Steps 1–5 of the plan: the cat on the desktop, the real sessions, the plan limits, questions
+through the widget and the settings. Next: macOS.

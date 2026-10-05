@@ -6,8 +6,12 @@
   var invoke=window.__TAURI__.core.invoke,listen=window.__TAURI__.event.listen;
   var root=document.getElementById('root');
   var SNAP=24,BAND=58;
-  var S={mode:'cat',dock:null,open:false,idleOpen:false};
+  var S={mode:'cat',dock:null,open:false,idleOpen:false,back:false};
   var big=Pixel.Sprite('cat','catB',3,'idle'),small=Pixel.Sprite('cat','catB',2,'idle');
+  // Settings live on the back of the card (config.json through Rust); SET holds what the back shows.
+  var KINDS={cat:['cat','catB','Котик'],blob:['blob','blob','Краплинка'],ghost:['ghost','ghost','Привидок']};
+  var CFG={kind:'cat',sound:true},SET={autostart:false,hook:null,confirm:null,err:''};
+  var minis={};Object.keys(KINDS).forEach(function(k){minis[k]=Pixel.Sprite(KINDS[k][0],KINDS[k][1],2,'idle');});
 
   // Live data from Rust: the session list (sessions.rs) and the plan limits (limits.rs).
   var LIST=[],moodOverride=null,lastDone=0,LIM=null,LIMWHY='';
@@ -61,11 +65,24 @@
   function grp(t,arr){return arr.length?'<div class="gh"><span>'+t+'</span><span>'+arr.length+'</span></div>'+arr.map(row).join(''):'';}
   function card(edge){
     var idle=by('idle'),act=active();
-    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('ConsoleLine')+'<span class="tt">Claude</span><span class="ct">'+(act.length?act.length+' активні':'усе тихо')+'</span><span class="sp"></span>'+(edge?'':'<button type="button" class="ib" data-act="min" title="Згорнути">'+ic('Minus')+'</button>')+'</div>'+
+    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('ConsoleLine')+'<span class="tt">Claude</span><span class="ct">'+(act.length?act.length+' активні':'усе тихо')+'</span><span class="sp"></span><button type="button" class="ib" data-act="flip" title="Налаштування">'+ic('CogOutline')+'</button>'+(edge?'':'<button type="button" class="ib" data-act="min" title="Згорнути">'+ic('Minus')+'</button>')+'</div>'+
       '<div class="ss">'+grp('Чекають на тебе',by('wait'))+grp('Працюють',by('run'))+grp('Твоя черга',by('done'))+
       (idle.length?'<button type="button" class="grp'+(S.idleOpen?' open':'')+'" data-act="idle">'+ic('ChevronRight')+'Неактивні<span class="n">'+idle.length+'</span></button>'+(S.idleOpen?idle.map(row).join(''):''):'')+
       (LIST.length?'':'<div class="empty">Сесій за добу нема</div>')+'</div>'+
       limHTML()+'</div>';
+  }
+  function hookHTML(){
+    var h=SET.hook||{installed:false};
+    if(SET.confirm==='install')return '<div class="hk"><div class="hk1">Додати хук віджета на 11 подій у ~/.claude/settings.json? Інші хуки не зачіпаю, копія файлу буде поруч.</div><div class="hkb"><button type="button" class="btn p" data-act="hook-yes">Додати</button><button type="button" class="btn" data-act="hook-no">Ні</button></div></div>';
+    if(SET.confirm==='uninstall')return '<div class="hk"><div class="hk1">Прибрати хук віджета з ~/.claude/settings.json? Сесії перестануть оновлюватись. Інші хуки не зачіпаю, копія файлу буде поруч.</div><div class="hkb"><button type="button" class="btn p" data-act="hook-yes">Прибрати</button><button type="button" class="btn" data-act="hook-no">Ні</button></div></div>';
+    return '<div class="opt"><span>Хук Claude Code<br><small class="'+(h.installed?'okc':'mut')+'">'+(h.installed?'стоїть — сесії видно':'не стоїть — сесій не видно')+'</small></span><button type="button" class="btn" data-act="hook">'+(h.installed?'Зняти':'Поставити')+'</button></div>'+(SET.err?'<div class="err">'+esc(SET.err)+'</div>':'');
+  }
+  function settings(edge){
+    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('CogOutline')+'<span class="tt">Налаштування</span><span class="sp"></span><button type="button" class="ib" data-act="flip" title="Назад до сесій">'+ic('Close')+'</button></div>'+
+      '<div class="sec"><div class="sl">Персонаж</div><div class="kinds">'+Object.keys(KINDS).map(function(k){return '<button type="button" class="kd'+(CFG.kind===k?' on':'')+'" data-act="kind" data-kind="'+k+'"><span class="mini" data-mini="'+k+'"></span><span>'+KINDS[k][2]+'</span></button>';}).join('')+'</div></div>'+
+      '<div class="opt"><span>Звук, коли сесія питає</span><button type="button" class="tgl'+(CFG.sound!==false?' on':'')+'" data-act="sound" title="Звук"></button></div>'+
+      '<div class="opt"><span>Запускати з Windows</span><button type="button" class="tgl'+(SET.autostart?' on':'')+'" data-act="autostart" title="Автозапуск"></button></div>'+
+      hookHTML()+'<div class="ver">Claude Widget 0.1</div></div>';
   }
   function strip(edge){var m=maxLim(),act=active();return '<div class="strip e'+edge+'">'+(act.length?act.map(function(s){return '<span class="dot '+s.state+'"></span>';}).join(''):'<span class="dot"></span>')+(m?'<span class="vb"><i style="height:'+Math.min(100,m.p)+'%;background:'+col(m.p)+'"></i></span>':'')+'</div>';}
   // The cat's mood follows the sessions: someone waiting for you beats everything, then work;
@@ -84,9 +101,25 @@
   function render(){
     if(S.dock&&!S.open)root.innerHTML=strip(S.dock);
     else if(S.mode==='cat'&&!S.dock)root.innerHTML='<div class="grab cat"></div>';
-    else root.innerHTML='<div class="cardwrap'+(S.dock==='l'?' dl':'')+'"><div class="sit grab"></div>'+card(S.dock)+'</div>';
+    else root.innerHTML='<div class="cardwrap'+(S.dock==='l'?' dl':'')+'"><div class="sit grab"></div>'+(S.back?settings(S.dock):card(S.dock))+'</div>';
     var c=root.querySelector('.cat');if(c)c.appendChild(big.canvas);
     var s=root.querySelector('.sit');if(s)s.appendChild(small.canvas);
+    root.querySelectorAll('[data-mini]').forEach(function(m){m.appendChild(minis[m.getAttribute('data-mini')].canvas);});
+  }
+  function save(patch){invoke('set_config',{patch:patch});}
+  // Where the widget was left, so it comes back there: mode, docked edge, the content's top-left.
+  async function savePlace(){
+    var p=await invoke('poll'),z=measure(p.scale);
+    save({place:{mode:S.mode,dock:S.dock,x:Math.round(contentX(p,z)),y:Math.round(p.win.y)}});
+  }
+  function setKind(k){if(!KINDS[k])return;CFG.kind=k;big.kind=small.kind=KINDS[k][0];big.pal=small.pal=Pixel.PAL[KINDS[k][1]];}
+  // The card turns over: a quarter turn out, swap the side, a quarter turn back in.
+  async function flip(){
+    var wg=root.querySelector('.wg');if(wg){wg.classList.add('fl-out');await new Promise(function(r){setTimeout(r,140);});}
+    S.back=!S.back;SET.confirm=null;SET.err='';
+    if(S.back){try{SET.autostart=await invoke('autostart_get');SET.hook=await invoke('hook_status');}catch(e){}}
+    await relayout();
+    var n=root.querySelector('.wg');if(n){n.classList.add('fl-in');requestAnimationFrame(function(){requestAnimationFrame(function(){n.classList.remove('fl-in');});});}
   }
   function measure(sc){var r=root.getBoundingClientRect();return {w:Math.ceil(r.width*sc),h:Math.ceil(r.height*sc)};}
   function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
@@ -136,7 +169,7 @@
         var solid=inside&&solidAt(x,y);setIgnore(!solid);
         big.hover=small.hover=solid&&document.elementFromPoint(x,y)&&document.elementFromPoint(x,y).tagName==='CANVAS';
         if(S.dock&&!S.open&&solid){S.open=true;lastInside=now;await relayout();}
-        else if(S.dock&&S.open&&!S.hold){if(inside)lastInside=now;else if(now-lastInside>450){S.open=false;await relayout();}}
+        else if(S.dock&&S.open&&!S.hold){if(inside)lastInside=now;else if(now-lastInside>450){S.open=false;S.back=false;SET.confirm=null;await relayout();}}
       }
     }finally{busy=false;}
   }
@@ -174,18 +207,25 @@
   });
   root.addEventListener('pointerup',async function(){
     if(!drag)return;var d=drag;drag=null;
-    if(!d.moved){if(d.onCat&&S.mode==='cat'){S.mode='card';await relayout('toCard');}return;}
+    if(!d.moved){if(d.onCat&&S.mode==='cat'){S.mode='card';await relayout('toCard');savePlace();}return;}
     big.drag=small.drag=false;big.dropT=small.dropT=performance.now();document.body.classList.remove('dragging');
     var p=await invoke('drag_end'),k=p.work,w=p.win,cw=measure(p.scale).w,edge=Math.round(SNAP*p.scale);
     if(w.x-k.x<edge)S.dock='l';else if(k.x+k.w-(w.x+cw)<edge)S.dock='r';else S.dock=null;
-    S.open=false;await relayout();
+    S.open=false;await relayout();savePlace();
   });
   root.addEventListener('click',async function(e){
     var a=e.target.closest('[data-act]'),r=e.target.closest('.row');
     if(!a){if(r&&r.dataset.local)invoke('open_session',{local:r.dataset.local});return;}
     var act=a.getAttribute('data-act');
-    if(act==='min'){S.mode='cat';await relayout('toCat');}
-    else if(act==='idle'){S.idleOpen=!S.idleOpen;await relayout();}
+    if(act==='min'){S.mode='cat';S.back=false;await relayout('toCat');savePlace();}
+    else if(act==='idle'){S.idleOpen=!S.idleOpen;save({idleOpen:S.idleOpen});await relayout();}
+    else if(act==='flip')await flip();
+    else if(act==='kind'){setKind(a.dataset.kind);save({kind:CFG.kind});render();align();}
+    else if(act==='sound'){CFG.sound=CFG.sound===false;save({sound:CFG.sound});render();align();if(CFG.sound)chirp();}
+    else if(act==='autostart'){try{SET.autostart=await invoke('autostart_set',{on:!SET.autostart});SET.err='';}catch(x){SET.err='Автозапуск: '+x;}render();align();}
+    else if(act==='hook'){SET.confirm=SET.hook&&SET.hook.installed?'uninstall':'install';await relayout();}
+    else if(act==='hook-no'){SET.confirm=null;await relayout();}
+    else if(act==='hook-yes'){var which=SET.confirm;SET.confirm=null;try{SET.hook=await invoke(which==='install'?'hook_install':'hook_uninstall');SET.err='';}catch(x){SET.err=String(x);}await relayout();}
     else if(act==='open'&&r&&r.dataset.local)invoke('open_session',{local:r.dataset.local});
     else if(act==='round')invoke('open_round',{sid:a.dataset.sid,name:a.dataset.round,title:a.dataset.title});
   });
@@ -193,7 +233,7 @@
   // New data: re-render what is on screen; resize the window only when the content's size changed,
   // so a session switching tools does not make the widget twitch.
   async function refresh(){
-    if(!(S.dock||S.mode==='card'))return;
+    if(!(S.dock||S.mode==='card')||S.back)return;
     var p=await invoke('poll'),sc=p.scale,bz=measure(sc),bx=contentX(p,bz),by0=p.win.y;
     render();align();
     var z=measure(sc);if(z.w!==bz.w||z.h!==bz.h)await fit(bx,by0);
@@ -204,7 +244,7 @@
   function onData(list){
     var wasDone={},wasWait={};LIST.forEach(function(x){if(x.state==='done')wasDone[x.sid]=1;if(x.state==='wait')wasWait[x.sid+'|'+(x.round||x.what)]=1;});
     if(list.some(function(x){return x.state==='done'&&!wasDone[x.sid];})&&LIST.length)lastDone=Date.now();
-    if(primed&&list.some(function(x){return x.state==='wait'&&!wasWait[x.sid+'|'+(x.round||x.what)];}))chirp();
+    if(primed&&CFG.sound!==false&&list.some(function(x){return x.state==='wait'&&!wasWait[x.sid+'|'+(x.round||x.what)];}))chirp();
     primed=true;
     LIST=list||[];applyMood();
     if(!drag)refresh();
@@ -218,23 +258,31 @@
     applyMood();
   },1000);
 
-  var KINDS={cat:['cat','catB'],blob:['blob','blob'],ghost:['ghost','ghost']};
   listen('tray',function(ev){
     var id=String(ev.payload);
     if(id.indexOf('mood:')===0){moodOverride=id==='mood:auto'?null:id.slice(5);applyMood();}
-    else if(id.indexOf('kind:')===0){var k=KINDS[id.slice(5)];if(k){big.kind=small.kind=k[0];big.pal=small.pal=Pixel.PAL[k[1]];}}
+    else if(id.indexOf('kind:')===0){setKind(id.slice(5));save({kind:CFG.kind});if(S.back){render();align();}}
   });
 
   (async function start(){
-    var hint=await invoke('start_hint'),how=hint[0]||'';
+    var hint=await invoke('start_hint'),how=hint[0]||'',cfg=await invoke('get_config')||{};
+    if(cfg.kind)setKind(cfg.kind);
+    if(cfg.sound===false)CFG.sound=false;
+    if(cfg.idleOpen)S.idleOpen=true;
+    var place=!how&&cfg.place&&typeof cfg.place.x==='number'?cfg.place:null;
+    if(place){S.mode=place.mode==='card'?'card':'cat';S.dock=place.dock==='l'||place.dock==='r'?place.dock:null;}
     if(how==='card')S.mode='card';
+    if(how==='settings'){S.mode='card';S.back=true;try{SET.autostart=await invoke('autostart_get');SET.hook=await invoke('hook_status');}catch(e){}}
     if(how.indexOf('dock-')===0){S.dock=how.charAt(5);S.open=/open$/.test(how);S.hold=S.open;}
     if(hint[1])moodOverride=hint[1];
     LIST=await invoke('sessions');setLimits(await invoke('limits'));applyMood();
     if(hint[2]){var rp=hint[2].split('/');invoke('open_round',{sid:rp[0],name:rp[1],title:'перевірка'});}
     render();align();
     var p=await invoke('poll'),sc=p.scale,z=measure(sc),k=p.work;
-    await fit(k.x+k.w-z.w-48*sc,k.y+k.h-z.h-48*sc);
+    // Back where it was left: move there first, so the clamp uses that monitor (or, if that monitor
+    // is gone, the primary one).
+    if(place){await invoke('place',{x:place.x,y:place.y,w:z.w,h:z.h});await fit(place.x,place.y);}
+    else await fit(k.x+k.w-z.w-48*sc,k.y+k.h-z.h-48*sc);
     await invoke('show');
   })();
 })();

@@ -3,6 +3,8 @@
 // cursor-following eyes behave the same on any monitor and any DPI.
 #![windows_subsystem = "windows"]
 
+mod config;
+mod hooks;
 mod limits;
 mod rounds;
 mod sessions;
@@ -127,6 +129,45 @@ async fn open_round(
 }
 
 #[tauri::command]
+fn get_config() -> serde_json::Value {
+    config::read()
+}
+
+#[tauri::command]
+fn set_config(patch: serde_json::Value) -> serde_json::Value {
+    config::merge(&patch)
+}
+
+#[tauri::command]
+fn autostart_get(app: tauri::AppHandle) -> bool {
+    use tauri_plugin_autostart::ManagerExt;
+    app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+#[tauri::command]
+fn autostart_set(app: tauri::AppHandle, on: bool) -> Result<bool, String> {
+    use tauri_plugin_autostart::ManagerExt;
+    let al = app.autolaunch();
+    if on { al.enable() } else { al.disable() }.map_err(|e| e.to_string())?;
+    Ok(al.is_enabled().unwrap_or(false))
+}
+
+#[tauri::command]
+fn hook_status() -> hooks::Status {
+    hooks::status()
+}
+
+#[tauri::command]
+fn hook_install() -> Result<hooks::Status, String> {
+    hooks::install()
+}
+
+#[tauri::command]
+fn hook_uninstall() -> Result<hooks::Status, String> {
+    hooks::uninstall()
+}
+
+#[tauri::command]
 fn open_session(local: String) {
     sessions::open_in_desktop(&local);
 }
@@ -166,6 +207,10 @@ fn drag_end(window: WebviewWindow, drag: State<DragOffset>) -> Poll {
 
 fn main() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .register_uri_scheme_protocol("round", rounds::handle)
         .manage(DragOffset::default())
         .manage(sessions::Latest(Mutex::new(Vec::new())))
@@ -178,6 +223,13 @@ fn main() {
             limits,
             open_round,
             open_session,
+            get_config,
+            set_config,
+            autostart_get,
+            autostart_set,
+            hook_status,
+            hook_install,
+            hook_uninstall,
             show,
             ignore,
             drag_start,
