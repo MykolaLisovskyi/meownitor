@@ -229,6 +229,8 @@ fn main() {
     let changed = state != prev_state || event == "UserPromptSubmit";
     st["sid"] = json!(sid);
     st["cwd"] = json!(str_of("cwd"));
+    // The widget reads its tail: stopping a turn fires no hook and shows only there.
+    st["transcript"] = json!(str_of("transcript_path"));
     st["event"] = json!(event);
     st["updated"] = json!(now);
     if changed || st.get("since").is_none() {

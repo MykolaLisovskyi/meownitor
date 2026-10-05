@@ -37,6 +37,7 @@ pub struct Latest(pub Mutex<Vec<Session>>);
 
 struct Hooked {
     cwd: String,
+    transcript: String,
     state: String,
     what: String,
     detail: String,
@@ -148,6 +149,7 @@ fn parse_hooked(p: &Path) -> Option<(String, Hooked)> {
         str_of(&v, "sid"),
         Hooked {
             cwd: str_of(&v, "cwd"),
+            transcript: str_of(&v, "transcript"),
             state: str_of(&v, "state"),
             what: str_of(&v, "what"),
             detail: str_of(&v, "detail"),
@@ -181,6 +183,73 @@ fn parse_desk(p: &Path) -> Option<(String, Desk)> {
     ))
 }
 
+/// Where Claude Code keeps a session's transcript. The hook passes the path on; state files written
+/// before it did fall back to Claude Code's layout: ~/.claude/projects/<cwd with everything but
+/// letters and digits turned into '-'>/<id>.jsonl — right only if the session never changed folder.
+fn transcript_of(sid: &str, h: &Hooked) -> Option<PathBuf> {
+    if !h.transcript.is_empty() {
+        return Some(PathBuf::from(&h.transcript));
+    }
+    #[cfg(windows)]
+    let home = std::env::var_os("USERPROFILE");
+    #[cfg(not(windows))]
+    let home = std::env::var_os("HOME");
+    let project: String = h
+        .cwd
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    Some(
+        PathBuf::from(home?)
+            .join(".claude")
+            .join("projects")
+            .join(project)
+            .join(format!("{sid}.jsonl")),
+    )
+}
+
+/// Stopping a turn fires no hook: Claude Code only writes "[Request interrupted by user]" (or
+/// "… for tool use]") into the transcript as the turn's last message. A session whose transcript
+/// ends that way was stopped, whatever the hook said last.
+fn ends_interrupted(path: &Path) -> bool {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(path) else {
+        return false;
+    };
+    let len = f.metadata().map(|m| m.len()).unwrap_or(0);
+    let mut tail = Vec::new();
+    if f.seek(SeekFrom::Start(len.saturating_sub(64 * 1024)))
+        .is_err()
+        || f.read_to_end(&mut tail).is_err()
+    {
+        return false;
+    }
+    for line in String::from_utf8_lossy(&tail).lines().rev() {
+        let Ok(v) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        let kind = str_of(&v, "type");
+        if (kind != "user" && kind != "assistant")
+            || v.get("isSidechain").and_then(|x| x.as_bool()) == Some(true)
+        {
+            continue;
+        }
+        let texts: Vec<&str> = match v.pointer("/message/content") {
+            Some(Value::String(s)) => vec![s.as_str()],
+            Some(Value::Array(a)) => a
+                .iter()
+                .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+                .collect(),
+            _ => Vec::new(),
+        };
+        return kind == "user"
+            && texts
+                .iter()
+                .any(|t| t.starts_with("[Request interrupted by user"));
+    }
+    false
+}
+
 fn folder_name(cwd: &str) -> String {
     cwd.trim_end_matches(['/', '\\'])
         .rsplit(['/', '\\'])
@@ -192,6 +261,7 @@ fn folder_name(cwd: &str) -> String {
 fn compose(
     hooks: &Cache<Hooked>,
     desk: &Cache<Desk>,
+    stopped: &[String],
     rounds: &[crate::rounds::Pending],
     now: u64,
 ) -> Vec<Session> {
@@ -234,7 +304,8 @@ fn compose(
         }
         let mut state = h.state.clone();
         if (state == "done" && now.saturating_sub(h.since) > DONE_TO_IDLE_MS)
-            || ((state == "run" || state == "wait") && now.saturating_sub(h.updated) > STALE_MS)
+            || ((state == "run" || state == "wait")
+                && (now.saturating_sub(h.updated) > STALE_MS || stopped.contains(sid)))
         {
             state = "idle".into();
         }
@@ -298,12 +369,34 @@ pub fn spawn(app: AppHandle) {
         let hook_dir = data.join("sessions");
         let mut hooks: Cache<Hooked> = Cache::new();
         let mut desk: Cache<Desk> = Cache::new();
+        // Whether each working or waiting session's transcript ends in a stop, by session id.
+        let mut transcripts: Cache<bool> = Cache::new();
         let mut last_desk = Instant::now() - Duration::from_secs(60);
         let mut last_sent: Option<Vec<Session>> = None;
         loop {
             let mut files = Vec::new();
             list_json(&hook_dir, 0, "", &mut files);
             hooks.refresh(files, parse_hooked);
+            let now = now_ms();
+            let busy: Vec<PathBuf> = hooks
+                .values()
+                .filter(|(_, h)| {
+                    (h.state == "run" || h.state == "wait")
+                        && now.saturating_sub(h.updated) <= STALE_MS
+                })
+                .filter_map(|(sid, h)| transcript_of(sid, h))
+                .collect();
+            transcripts.refresh(busy, |p| {
+                Some((
+                    p.file_stem()?.to_string_lossy().into_owned(),
+                    ends_interrupted(p),
+                ))
+            });
+            let stopped: Vec<String> = transcripts
+                .values()
+                .filter(|(_, hit)| *hit)
+                .map(|(sid, _)| sid.clone())
+                .collect();
             if last_desk.elapsed() >= Duration::from_secs(5) {
                 if let Some(d) = &desk_dir {
                     let mut files = Vec::new();
@@ -312,7 +405,7 @@ pub fn spawn(app: AppHandle) {
                 }
                 last_desk = Instant::now();
             }
-            let list = compose(&hooks, &desk, &crate::rounds::pending(), now_ms());
+            let list = compose(&hooks, &desk, &stopped, &crate::rounds::pending(), now);
             if last_sent.as_ref() != Some(&list) {
                 if let Some(latest) = app.try_state::<Latest>() {
                     *latest.0.lock().unwrap() = list.clone();
@@ -346,5 +439,50 @@ pub fn open_in_desktop(local: &str) {
     #[cfg(not(windows))]
     {
         let _ = std::process::Command::new("open").arg(&url).spawn();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A stop is seen only while it is the transcript's last message — plain or mid-tool; a new
+    /// prompt after it, or a reply, means the session went on.
+    #[test]
+    fn a_stop_shows_only_as_the_last_message() {
+        let p =
+            std::env::temp_dir().join(format!("cw-transcript-test-{}.jsonl", std::process::id()));
+        let user = |t: &str| {
+            format!(
+                r#"{{"type":"user","message":{{"role":"user","content":[{{"type":"text","text":"{t}"}}]}}}}"#
+            )
+        };
+        let lines = |ls: &[String]| std::fs::write(&p, ls.join("\n") + "\n").unwrap();
+        let attachment = r#"{"type":"attachment","attachment":{"type":"date"}}"#.to_string();
+        let title = r#"{"type":"custom-title","customTitle":"x"}"#.to_string();
+        let reply = r#"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"ok"}]}}"#.to_string();
+
+        lines(&[
+            user("hi"),
+            attachment.clone(),
+            user("[Request interrupted by user]"),
+            title.clone(),
+        ]);
+        assert!(ends_interrupted(&p));
+        lines(&[
+            user("[Request interrupted by user for tool use]"),
+            title.clone(),
+        ]);
+        assert!(ends_interrupted(&p));
+        lines(&[
+            user("[Request interrupted by user]"),
+            user("go on"),
+            attachment.clone(),
+        ]);
+        assert!(!ends_interrupted(&p));
+        lines(&[user("hi"), reply]);
+        assert!(!ends_interrupted(&p));
+        let _ = std::fs::remove_file(&p);
+        assert!(!ends_interrupted(&p));
     }
 }
