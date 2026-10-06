@@ -103,6 +103,20 @@ Claude Desktop — за бажанням: з ним видно назви сес
 **Портативна версія:** розпакуйте `Meownitor_<версія>_x64-portable.zip` куди завгодно, запустіть
 `meownitor.exe` і пройдіть кроки 2–6.
 
+**macOS** (експериментально, збірка з коду — релізу ще нема). Потрібні [Rust](https://rustup.rs), Node 20+
+і Xcode command line tools:
+
+```bash
+cd app && npm install
+cargo build --release --bin meownitor-hook --manifest-path src-tauri/Cargo.toml
+npx tauri build --bundles app --config src-tauri/tauri.bundle.macos.conf.json
+open src-tauri/target/release/bundle/macos/Meownitor.app
+```
+
+Далі ті самі кроки з налаштуваннями й хуком; скіл кладіть у `~/.claude/skills/meownitor-round`. Дані
+лежать у `~/Library/Application Support/Meownitor`. Чого на macOS ще нема: лімітів плану (Claude Code
+тримає там вхід у Keychain, а не в `~/.claude/.credentials.json`).
+
 ### Як користуватись
 
 | | |

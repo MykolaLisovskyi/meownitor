@@ -133,6 +133,20 @@ Claude Desktop is optional: it adds session titles and the open-in-Desktop link.
 **Portable:** unzip `Meownitor_<version>_x64-portable.zip` anywhere, run `meownitor.exe` and follow
 steps 2–5.
 
+**macOS** (experimental, built from source — no release yet). Needs [Rust](https://rustup.rs), Node 20+
+and the Xcode command line tools:
+
+```bash
+cd app && npm install
+cargo build --release --bin meownitor-hook --manifest-path src-tauri/Cargo.toml
+npx tauri build --bundles app --config src-tauri/tauri.bundle.macos.conf.json
+open src-tauri/target/release/bundle/macos/Meownitor.app
+```
+
+Then steps 2–3 and 5 as above; the skill goes to `~/.claude/skills/meownitor-round`. The data lives in
+`~/Library/Application Support/Meownitor`. Not yet on macOS: the plan limits (Claude Code keeps its
+sign-in in the Keychain there, not in `~/.claude/.credentials.json`).
+
 ### Using it
 
 | | |
@@ -247,7 +261,7 @@ widget starts.
 
 ## Roadmap
 
-- macOS: the sign-in from the Keychain, the data in `~/Library/Application Support`.
+- macOS: the plan limits (the sign-in from the Keychain), a release build.
 
 ## Contributing
 
