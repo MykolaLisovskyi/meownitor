@@ -1,0 +1,38 @@
+# Every push and pull request: formatting, clippy with warnings as errors, the tests, and a debug
+# build of the widget and the hook.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Format
+        working-directory: app/src-tauri
+        run: cargo fmt --check
+
+      - name: Lint
+        working-directory: app/src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Test
+        working-directory: app/src-tauri
+        run: cargo test --locked -- --test-threads=1
+
+      - name: Build
+        working-directory: app/src-tauri
+        run: cargo build --locked

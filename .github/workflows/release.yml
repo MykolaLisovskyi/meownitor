@@ -1,0 +1,116 @@
+# A tag vX.Y.Z builds the Windows installer, the portable zip and the meownitor-round skill, and
+# publishes them as the GitHub release of that tag, with the version's section of CHANGELOG.md as
+# its notes. The tag has to match the version in app/src-tauri/tauri.conf.json.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "An existing tag to (re)build, e.g. v0.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Check the tag against the app's version
+        shell: pwsh
+        run: |
+          $version = (Get-Content app/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne $env:TAG) { throw "Tag $env:TAG does not match tauri.conf.json version $version" }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app/src-tauri
+
+      - name: Test
+        working-directory: app/src-tauri
+        run: cargo test --locked -- --test-threads=1
+
+      # The hook is a second binary of the same crate; it is built first so the installer can take it
+      # as a resource (tauri.bundle.conf.json) and install it next to the widget.
+      - name: Build the installer
+        working-directory: app
+        run: |
+          npm ci
+          cargo build --release --locked --manifest-path src-tauri/Cargo.toml --bin meownitor-hook
+          npx tauri build --bundles nsis --config src-tauri/tauri.bundle.conf.json
+
+      - name: Check the installer holds both programs
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem "app/src-tauri/target/release/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          $list = 7z l $setup.FullName | Out-String
+          foreach ($exe in "meownitor.exe", "meownitor-hook.exe") {
+            if ($list -notmatch [regex]::Escape($exe)) { throw "$exe is missing from $($setup.Name)" }
+          }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $out = New-Item -ItemType Directory -Force dist
+          $rel = "app/src-tauri/target/release"
+          $setup = Get-ChildItem "$rel/bundle/nsis/*-setup.exe" | Select-Object -First 1
+          $name = (Get-Content app/src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).productName -replace '\s', ''
+          Copy-Item $setup.FullName "$out/${name}_${env:VERSION}_x64-setup.exe"
+
+          $portable = New-Item -ItemType Directory -Force "portable/$name"
+          Copy-Item "$rel/meownitor.exe", "$rel/meownitor-hook.exe", README.md, LICENSE $portable
+          Compress-Archive -Path "portable/$name" -DestinationPath "$out/${name}_${env:VERSION}_x64-portable.zip"
+
+          Compress-Archive -Path skill/meownitor-round -DestinationPath "$out/meownitor-round-skill.zip"
+
+          Get-ChildItem $out | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content "$out/SHA256SUMS.txt"
+
+      - name: Release notes
+        shell: pwsh
+        run: |
+          # The version's section of CHANGELOG.md: from its "## <version>" heading to the next "## ".
+          $lines = Get-Content CHANGELOG.md
+          $start = ($lines | Select-String -Pattern "^## \[?$([regex]::Escape($env:VERSION))\]?(\s|$)").LineNumber
+          $notes = if ($start) {
+            $rest = $lines[$start..($lines.Count - 1)]
+            $end = ($rest | Select-String -Pattern '^## ' | Select-Object -First 1).LineNumber
+            if ($end) { $rest[0..($end - 2)] } else { $rest }
+          } else { @("Release $env:TAG") }
+          $notes | Set-Content notes.md
+
+      - name: Publish
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pre = if ($env:TAG -like '*-*') { '--prerelease' } else { $null }
+          gh release view $env:TAG *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $env:TAG (Get-ChildItem dist).FullName --clobber
+          } else {
+            gh release create $env:TAG (Get-ChildItem dist).FullName --title $env:TAG --notes-file notes.md $pre
+          }
