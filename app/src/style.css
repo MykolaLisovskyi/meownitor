@@ -101,6 +101,10 @@ canvas.spr{display:block;image-rendering:pixelated}
 .tgl::after{content:"";position:absolute;top:3px;left:3px;width:14px;height:14px;border-radius:50%;background:#fff;transition:left .15s}
 .tgl.on{background:var(--primary)}
 .tgl.on::after{left:17px}
+.seg{display:inline-flex;flex:none;padding:2px;border:1px solid var(--line2);border-radius:7px}
+.seg button{height:20px;padding:0 8px;border:0;border-radius:5px;background:transparent;color:var(--ink3);font-size:11.5px;cursor:pointer}
+.seg button:hover{color:var(--ink)}
+.seg button.on{background:var(--primary);color:#fff}
 .btn{height:26px;padding:0 10px;border-radius:6px;border:1px solid var(--line2);background:transparent;color:var(--ink);font-size:12px;cursor:pointer;flex:none}
 .btn:hover{background:var(--hover)}
 .btn.p{background:var(--primary);border-color:var(--primary);color:#fff}

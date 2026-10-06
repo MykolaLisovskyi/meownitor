@@ -6,7 +6,7 @@ description: Ask the user a question with visual options through the Claude Widg
 # Ask through the widget
 
 The Claude Widget (the pixel cat on the user's desktop) shows your session as asking, chirps once,
-and opens your page in a window centred on the user's monitor when they press «Відповісти». Their
+and opens your page in a window centred on the user's monitor when they press «Answer». Their
 answer reaches you through a background waiter — no polling, no copy-paste.
 
 ## Steps
@@ -23,15 +23,15 @@ answer reaches you through a background waiter — no polling, no copy-paste.
    template in this skill's folder (read it first; its comments are the markup reference):
    - `template-choice.html` — a decision: the variants drawn side by side, one question or a group;
    - `template-review.html` — a result for the user's OK: the screen or render with what changed
-     framed and numbered, «ОК, комітимо» / «Є правки».
+     framed and numbered, «OK, commit it» / «Needs changes».
 
    The page links `round-kit.css` and `round-kit.js` and holds only its content and its drawings' own
    styles; the kit does the rest — the look in Dark and Light (the user's switch), the question badge,
-   the variant letters and «раджу», picking, the comment field, zoom, the bar with «Надіслати» and the
-   send itself. What goes on it:
+   the variant letters and the «recommended» pill, picking, the comment field, zoom, the bar with «Send»
+   and the send itself — its own words in the widget's language. What goes on it:
    - `<title>` — short; it is what the widget row and the window title show;
    - `header.top` — `h1` and a `.sub` line or two: what we decide and what to look at;
-   - one `section.q` per question (`data-q` = its name in the answer, `1` or `В1`); `h2` the question,
+   - one `section.q` per question (`data-q` = its name in the answer, `1` or `Q1`); `h2` the question,
      `p.why` the facts it is decided on (what code or firmware dictates, with `file:line`);
    - one `.var` per option, **drawn** in `.vb` (HTML, inline SVG, canvas or a screenshot — the real look,
      not a description); `data-rec` on the one you advise with the reason in `.pm > .r`, a couple of short
@@ -39,9 +39,9 @@ answer reaches you through a background waiter — no polling, no copy-paste.
      needs the whole row. An option with nothing to draw is just `h3` (and a `p`) — a compact row;
    - several picks allowed: `data-multi` on the `.q`.
 
-   UI text in the user's language. Technical choices the user never sees are yours to make — don't ask
-   them. A page a project already made can go too — as a self-contained copy with its own files inlined,
-   as long as its send POSTs
+   The page's text in the user's language, with `<html lang>` to match. Technical choices the user
+   never sees are yours to make — don't ask them. A page a project already made can go too — as a
+   self-contained copy with its own files inlined, as long as its send POSTs
    `{page: location.pathname, text}` to `/answer`.
 
 3. **Wait in the background** (Bash with `run_in_background: true`):
@@ -68,8 +68,9 @@ answer reaches you through a background waiter — no polling, no copy-paste.
    Withdraw a round the same way when it no longer matters — the question changed, or you are asking
    it again in a new page.
 
-4. **Read the answer**: one line per question — `1 — A`, `2 — A, C` with several picks, `без вибору` —
-   and `  коментар: …` under it when they wrote one. «A②» in a comment points at number 2 in option
+4. **Read the answer** — always in this shape, whatever the page's language: the page's title, then one
+   line per question — `1 — A`, `2 — A, C` with several picks, `1 — no pick` — and `  comment: …` under
+   it when they wrote one. «A②» in a comment points at number 2 in option
    A's picture (a click on a number puts it there). Act on it; if you ask again, ask only what is still
    open, in a new page with a new name.
 
@@ -91,17 +92,17 @@ outlined and above the drawing — visibly not part of the UI.
 - **Both** when both hold: frame the area, number the places inside it.
 - **Neither** for a small picture with one obvious thing in it. One or two frames and about seven
   numbers per picture at most — beyond that, split the picture.
-- In a round that follows «правки», frame what changed since the previous page, so the eye goes
+- In a round that follows «Needs changes», frame what changed since the previous page, so the eye goes
   straight to it.
 
 How:
 
 - **In a drawing** (HTML or SVG) put the attribute on the element itself; the kit draws the frame or
   the number at it and redraws on resize, theme and zoom:
-  `data-frame` or `data-frame="нове"` (a tag), with `data-dim`, `data-pad="6"` (the gap, 4 by default),
+  `data-frame` or `data-frame="new"` (a tag), with `data-dim`, `data-pad="6"` (the gap, 4 by default),
   `data-dash`; `data-mark="2"` with `data-at` — `tl` (default) `tr` `bl` `br`, or `l` `r` `t` `b`
   just outside the element, `c` on it.
-- **On a screenshot** (`.shot` holding the `<img>`): `<i class="frame" data-px="x y w h" data-label="нове">`
+- **On a screenshot** (`.shot` holding the `<img>`): `<i class="frame" data-px="x y w h" data-label="new">`
   and `<i class="mkn" data-px="x y">2</i>`, in the image's own pixels — or in percent of it,
   `style="left:41%;top:22%;width:30%;height:12%"`.
 - A note on a drawing that is not a number: `<span class="anno">8 px</span>`, a dashed amber tag.

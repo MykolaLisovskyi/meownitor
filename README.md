@@ -55,9 +55,9 @@ A session asks through the widget with the `widget-round` skill (`skill/widget-r
 in Dark and Light, picking, zoom, numbered markers and frames drawn on the element or the screenshot
 pixel they point at, and the send — starting from `template-choice.html` or `template-review.html`, and
 runs `claude-widget-hook.exe wait <name>` in the background. The
-widget shows the session as asking and chirps; «Відповісти» opens the page in a window centred on the
+widget shows the session as asking and chirps; «Answer» opens the page in a window centred on the
 widget's monitor (served through the `round` scheme, `src-tauri/src/rounds.rs`); the page's
-«Надіслати» POSTs `/answer`, the answer lands in `<name>.answer.md` and the waiter hands it back.
+«Send» POSTs `/answer`, the answer lands in `<name>.answer.md` and the waiter hands it back.
 A session withdraws a round the user answered in the chat (`claude-widget-hook drop <name>`), and an
 answer sent after its waiter stopped comes with the user's next message.
 While a round window is in front, it and its page keep one keyboard layout: the page types in
@@ -74,6 +74,9 @@ backs the file up before every write (`cargo test --bin claude-widget hooks`). T
 sound, the idle group and where the widget was left (mode, edge, position) live in
 `~\.claude-widget\config.json` — not under AppData, which Claude Desktop's MSIX package redirects
 for everything it starts.
+
+The card speaks English by default; Ukrainian is a click away on its back (`src/i18n.js`,
+`src-tauri/src/i18n.rs`).
 
 The everyday copy runs from `%LOCALAPPDATA%\ClaudeWidget\app\` (`claude-widget.exe` and
 `claude-widget-hook.exe` from `target\release`), so start-with-Windows points at a place a rebuild

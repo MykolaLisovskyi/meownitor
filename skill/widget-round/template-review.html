@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="uk">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Налаштування — рендер на ОК</title>
+<title>Settings — a render for your OK</title>
 <link rel="stylesheet" href="round-kit.css">
 <script src="round-kit.js"></script>
 <style>
@@ -26,30 +26,30 @@
 <body>
 
 <header class="top">
-  <h1>Налаштування — рендер на ОК</h1>
-  <p class="sub">Що змінилось після минулого раунду — два-три рядки. <b>Рамкою</b> — що змінилось, <b>номерами</b> — де саме; решта
-    вікна — як було.</p>
+  <h1>Settings — a render for your OK</h1>
+  <p class="sub">What changed since the last round, in two or three lines. <b>The frame</b> is what changed, <b>the numbers</b>
+    are where exactly; the rest of the window is as it was.</p>
 </header>
 
 <section class="q" data-q="1">
-  <h2>Як тобі?</h2>
+  <h2>How does it look?</h2>
 
   <!-- A whole window of which one part matters: the window is drawn at its real width (data-w, scaled to fit), whatever
        is not the point as skeleton (.sk), the part that changed framed (data-frame + data-dim veils the rest), and the
        several places in it numbered (data-mark) with the legend beside them. -->
   <div class="with-legend">
     <div class="fig" data-w="860">
-      <div class="win" data-title="Claude Widget — налаштування">
+      <div class="win" data-title="My App — settings">
         <div class="m-app">
           <aside class="m-side sk-col" style="--gap:14px">
             <i class="sk" style="--w:70%"></i><i class="sk" style="--w:55%"></i><i class="sk" style="--w:62%"></i><i class="sk" style="--w:48%"></i>
           </aside>
           <main class="m-main">
             <div class="sk-col"><i class="sk" style="--w:180px;--h:12px"></i><i class="sk" style="--w:340px"></i></div>
-            <div class="m-group" data-frame="змінилось" data-dim>
-              <div class="m-set"><span>Звук, коли сесія питає</span><span class="m-seg" data-mark="1"><i>Без звуку</i><i class="on">Цвірінь</i><i>Дзвін</i></span></div>
-              <div class="m-set"><span>Запускати з Windows</span><span class="m-sw" data-mark="2"></span></div>
-              <div class="m-set"><span>Хук Claude Code</span><button class="m-btn" data-mark="3">Встановити</button></div>
+            <div class="m-group" data-frame="changed" data-dim>
+              <div class="m-set"><span>Notification sound</span><span class="m-seg" data-mark="1"><i>None</i><i class="on">Chirp</i><i>Bell</i></span></div>
+              <div class="m-set"><span>Start with Windows</span><span class="m-sw" data-mark="2"></span></div>
+              <div class="m-set"><span>Sync</span><button class="m-btn" data-mark="3">Connect</button></div>
             </div>
             <div class="sk box" style="--h:72px"></div>
           </main>
@@ -57,9 +57,9 @@
       </div>
     </div>
     <ol class="legend">
-      <li><b>Звук</b> — три варіанти замість двох, «Дзвін» новий</li>
-      <li><b>Запуск з Windows</b> — перемикач замість прапорця</li>
-      <li><b>Хук</b> — кнопка питає підтвердження перед записом</li>
+      <li><b>Sound</b> — three options instead of two, «Bell» is new</li>
+      <li><b>Start with Windows</b> — a switch instead of a checkbox</li>
+      <li><b>Sync</b> — the button asks before it connects</li>
     </ol>
   </div>
 
@@ -67,14 +67,14 @@
        <div class="fig center">
          <div class="shot">
            <img class="only-dark" src="data:image/png;base64,…"><img class="only-light" src="data:image/png;base64,…">
-           <i class="frame" data-px="412 180 360 140" data-label="змінилось" data-dim></i>   x y w h in the image's own pixels
+           <i class="frame" data-px="412 180 360 140" data-label="changed" data-dim></i>   x y w h in the image's own pixels
            <i class="mkn" data-px="430 196">1</i>                                            or style="left:41%;top:22%"
          </div>
        </div>  -->
 
   <div class="vars">
-    <div class="var" data-rec><h3>ОК, комітимо</h3></div>
-    <div class="var"><h3>Є правки</h3><p>напиши нижче — клац по номеру на картинці додасть посилання на нього</p></div>
+    <div class="var" data-rec><h3>OK, commit it</h3></div>
+    <div class="var"><h3>Needs changes</h3><p>write them below — a click on a number in the picture adds a reference to it</p></div>
   </div>
 </section>
 

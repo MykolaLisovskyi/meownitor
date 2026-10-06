@@ -265,14 +265,14 @@ fn main() {
     let event = str_of("hook_event_name");
     let tool = str_of("tool_name");
     let input = ev.get("tool_input").cloned().unwrap_or(Value::Null);
+    // `what` is the tool's name, or a code the widget words in its own language: @think, @ask,
+    // @agent, @perm, @done, @failed.
     let (state, what, detail): (String, String, String) = match event.as_str() {
         "SessionStart" => ("idle".into(), String::new(), String::new()),
-        "UserPromptSubmit" => ("run".into(), "Думає".into(), String::new()),
-        "PreToolUse" if tool == "AskUserQuestion" => (
-            "wait".into(),
-            "Питає тебе".into(),
-            describe(&tool, &input).1,
-        ),
+        "UserPromptSubmit" => ("run".into(), "@think".into(), String::new()),
+        "PreToolUse" if tool == "AskUserQuestion" => {
+            ("wait".into(), "@ask".into(), describe(&tool, &input).1)
+        }
         "PreToolUse" => {
             let (n, d) = describe(&tool, &input);
             ("run".into(), n, d)
@@ -282,22 +282,28 @@ fn main() {
             (prev_state.clone(), prev_what.clone(), prev_detail.clone())
         }
         "PostToolUse" | "PostToolUseFailure" | "SubagentStop" => {
-            ("run".into(), "Думає".into(), String::new())
+            ("run".into(), "@think".into(), String::new())
         }
-        "SubagentStart" => ("run".into(), "Агент".into(), str_of("agent_type")),
+        "SubagentStart" => ("run".into(), "@agent".into(), str_of("agent_type")),
         "PermissionRequest" => {
             let (n, d) = describe(&tool, &input);
-            ("wait".into(), format!("Чекає дозволу · {n}"), d)
+            (
+                "wait".into(),
+                "@perm".into(),
+                if d.is_empty() {
+                    n
+                } else {
+                    format!("{n} · {d}")
+                },
+            )
         }
-        "Notification" if str_of("message").contains("permission") => (
-            "wait".into(),
-            "Чекає дозволу".into(),
-            short(&str_of("message"), 80),
-        ),
+        "Notification" if str_of("message").contains("permission") => {
+            ("wait".into(), "@perm".into(), short(&str_of("message"), 80))
+        }
         // "Claude is waiting for your input" and the like change nothing.
         "Notification" => (prev_state.clone(), prev_what.clone(), prev_detail.clone()),
-        "Stop" => ("done".into(), "Готово — твоя черга".into(), String::new()),
-        "StopFailure" => ("done".into(), "Зупинилась з помилкою".into(), String::new()),
+        "Stop" => ("done".into(), "@done".into(), String::new()),
+        "StopFailure" => ("done".into(), "@failed".into(), String::new()),
         "SessionEnd" => ("ended".into(), String::new(), String::new()),
         _ => return,
     };

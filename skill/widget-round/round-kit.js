@@ -7,6 +7,10 @@
 
   Load it in <head>, without defer: the theme is set before the first paint, the rest waits until
   the page is parsed (its own scripts have run by then).
+
+  The kit's own words follow the widget's language (it sets window.__ROUND_LANG), or the page's
+  <html lang> when the page is opened outside the widget. The answer it sends is always worded the
+  same, in English: it is read by Claude, not by the user.
 */
 (function () {
   'use strict';
@@ -18,6 +22,39 @@
   var CIRCLED = '①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳';
   var ZOOM = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5h4v4M13.5 2.5 9.2 6.8M6.5 13.5h-4v-4M2.5 13.5l4.3-4.3"/></svg>';
   var qs = [], msg = null, sendBtn = null, lb = null, frame = 0;
+
+  var WORDS = {
+    en: {
+      now: 'current', rec: 'recommended', pick: 'Pick {v}', picked: 'Picked', answer: 'Answer',
+      comment: 'A comment or your own option (optional) — a click on a number in a picture adds a reference',
+      zoom: 'Open larger', prev: 'Previous (←)', next: 'Next (→)', close: 'Close (Esc)',
+      others: '← → other options · ', esc: 'Esc to close', theme: 'Theme', send: 'Send',
+      progress: 'Answered: {done} of {all}', partial: ' — you can send part of it',
+      ready: 'Ready to send.', choose: 'Pick an option and/or write a comment.',
+      none: 'Pick at least one option or write a comment.',
+      copied: 'Not opened from the widget — the answer is copied, paste it into the chat.',
+      nowhere: 'Not opened from the widget — nowhere to send it.',
+      sending: 'Sending…', sent: 'Sent — Claude already sees the answer.', failed: 'Could not send — is the widget closed?'
+    },
+    uk: {
+      now: 'як зараз', rec: 'раджу', pick: 'Обрати {v}', picked: 'Обрано', answer: 'Відповідь',
+      comment: 'Коментар або свій варіант (необов’язково) — клац по номеру на картинці додасть посилання',
+      zoom: 'Відкрити більшим', prev: 'Попередній (←)', next: 'Наступний (→)', close: 'Закрити (Esc)',
+      others: '← → інші варіанти · ', esc: 'Esc закрити', theme: 'Тема', send: 'Надіслати',
+      progress: 'Відповіді: {done} з {all}', partial: ' — можна надіслати й частину',
+      ready: 'Можна надсилати.', choose: 'Обери варіант і/або напиши коментар.',
+      none: 'Обери хоча б один варіант або напиши коментар.',
+      copied: 'Сторінка відкрита не з віджета — відповідь скопійовано, встав у чат.',
+      nowhere: 'Сторінка відкрита не з віджета — надіслати нікуди.',
+      sending: 'Надсилаю…', sent: 'Надіслано — Claude уже бачить відповідь.', failed: 'Не вдалося надіслати — віджет закритий?'
+    }
+  };
+  var LANG = window.__ROUND_LANG || ((root.getAttribute('lang') || '').slice(0, 2) === 'uk' ? 'uk' : 'en');
+  function word(k, a) {
+    var s = (WORDS[LANG] || WORDS.en)[k];
+    if (s == null) s = WORDS.en[k];
+    return a ? s.replace(/\{(\w+)\}/g, function (m, n) { return a[n] != null ? a[n] : m; }) : s;
+  }
 
   function $(s, el) { return (el || doc).querySelector(s); }
   function $$(s, el) { return [].slice.call((el || doc).querySelectorAll(s)); }
@@ -61,8 +98,8 @@
       if (!h3) { h3 = make('h3'); v.insertBefore(h3, v.firstChild); }
       v._name = h3.textContent.trim();
       h3.insertBefore(make('span', 'lt', letter), h3.firstChild);
-      if (v.hasAttribute('data-now')) h3.appendChild(make('span', 'pill now', v.getAttribute('data-now') || 'як зараз'));
-      if (v.hasAttribute('data-rec')) h3.appendChild(make('span', 'pill rec', v.getAttribute('data-rec') || 'раджу'));
+      if (v.hasAttribute('data-now')) h3.appendChild(make('span', 'pill now', v.getAttribute('data-now') || word('now')));
+      if (v.hasAttribute('data-rec')) h3.appendChild(make('span', 'pill rec', v.getAttribute('data-rec') || word('rec')));
       if (!$(VIS, v)) v.classList.add('text');
       var pk = make('div', 'pk'), b = make('button');
       b.type = 'button'; pk.appendChild(b); v.appendChild(pk);
@@ -87,7 +124,7 @@
       var qc = make('div', 'qc');
       if (!ta) {
         ta = make('textarea');
-        ta.placeholder = vars.length ? 'Коментар або свій варіант (необов\'язково) — клац по номеру на картинці додасть посилання' : 'Відповідь';
+        ta.placeholder = vars.length ? word('comment') : word('answer');
       }
       q.appendChild(qc); qc.appendChild(ta);
     }
@@ -109,7 +146,7 @@
     v.classList.toggle('picked', on);
     v.setAttribute('aria-checked', on ? 'true' : 'false');
     var b = $(':scope > .pk > button', v);
-    if (b) b.textContent = on ? 'Обрано' : 'Обрати ' + v.getAttribute('data-v');
+    if (b) b.textContent = on ? word('picked') : word('pick', { v: v.getAttribute('data-v') });
   }
 
   function grow(ta) {
@@ -131,7 +168,7 @@
     }
     if (outer(h) !== h) return;
     var b = make('button', 'zb');
-    b.type = 'button'; b.title = 'Відкрити більшим'; b.innerHTML = ZOOM;
+    b.type = 'button'; b.title = word('zoom'); b.innerHTML = ZOOM;
     b.addEventListener('click', function (e) { e.stopPropagation(); openLb(h); });
     h.appendChild(b);
     if (!h.closest('.var')) h.addEventListener('click', function (e) {
@@ -258,8 +295,8 @@
       var el = make('div', 'lb');
       el.setAttribute('role', 'dialog');
       el.innerHTML = '<div class="lb-bar"><div class="t"></div><span class="hint"></span>' +
-        '<button type="button" class="lb-prev" title="Попередній (←)">‹</button><button type="button" class="lb-next" title="Наступний (→)">›</button>' +
-        '<button type="button" class="lb-pick"></button><button type="button" class="lb-x" title="Закрити (Esc)">✕</button></div><div class="lb-body"></div>';
+        '<button type="button" class="lb-prev" title="' + word('prev') + '">‹</button><button type="button" class="lb-next" title="' + word('next') + '">›</button>' +
+        '<button type="button" class="lb-pick"></button><button type="button" class="lb-x" title="' + word('close') + '">✕</button></div><div class="lb-body"></div>';
       doc.body.appendChild(el);
       lb = { el: el };
       $('.lb-x', el).addEventListener('click', closeLb);
@@ -292,14 +329,14 @@
     pick.style.display = v ? '' : 'none';
     if (v) {
       var on = v.classList.contains('picked');
-      pick.textContent = on ? 'Обрано' : 'Обрати ' + v.getAttribute('data-v');
+      pick.textContent = on ? word('picked') : word('pick', { v: v.getAttribute('data-v') });
       pick.classList.toggle('on', on);
     }
     var many = lb.list.length > 1;
     $('.lb-prev', lb.el).style.display = $('.lb-next', lb.el).style.display = many ? '' : 'none';
     $('.lb-prev', lb.el).disabled = lb.i === 0;
     $('.lb-next', lb.el).disabled = lb.i === lb.list.length - 1;
-    $('.hint', lb.el).textContent = (many ? '← → інші варіанти · ' : '') + 'Esc закрити';
+    $('.hint', lb.el).textContent = (many ? word('others') : '') + word('esc');
   }
 
   // the clone is laid out exactly as on the page and scaled as a whole; its annotations are drawn
@@ -355,8 +392,8 @@
   // ---- the bar at the foot: the theme, what is answered, Send
   function buildFoot() {
     var f = make('div', 'foot');
-    f.innerHTML = '<div class="seg" role="group" aria-label="Тема"><button type="button" data-th="dark">Dark</button><button type="button" data-th="light">Light</button></div>' +
-      '<span class="msg"></span><span class="kbd">Ctrl+Enter</span><button type="button" class="send">Надіслати</button>';
+    f.innerHTML = '<div class="seg" role="group" aria-label="' + word('theme') + '"><button type="button" data-th="dark">Dark</button><button type="button" data-th="light">Light</button></div>' +
+      '<span class="msg"></span><span class="kbd">Ctrl+Enter</span><button type="button" class="send">' + word('send') + '</button>';
     doc.body.appendChild(f);
     msg = $('.msg', f);
     sendBtn = $('.send', f);
@@ -382,33 +419,34 @@
   function progress() {
     var done = qs.filter(function (q) { var a = answered(q); q.classList.toggle('answered', a); return a; }).length;
     if (!msg || (sendBtn && sendBtn.disabled)) return;
-    if (qs.length > 1) say('', 'Відповіді: ' + done + ' з ' + qs.length + (done && done < qs.length ? ' — можна надіслати й частину' : ''));
-    else say('', done ? 'Можна надсилати.' : 'Обери варіант і/або напиши коментар.');
+    if (qs.length > 1) say('', word('progress', { done: done, all: qs.length }) + (done && done < qs.length ? word('partial') : ''));
+    else say('', done ? word('ready') : word('choose'));
   }
 
-  // «1 — A» per question (several picks «2 — A, C»), the comment indented under it
+  // «1 — A» per question (several picks «2 — A, C»), the comment indented under it — in English
+  // whatever the page's language, so a session always reads the same shape
   function send() {
     if (!sendBtn || sendBtn.disabled) return;
     var lines = [doc.title.trim()], any = false;
     qs.forEach(function (q) {
       var vars = variants(q), id = q.getAttribute('data-q'), t = comment(q).value.trim();
       var picked = vars.filter(function (v) { return v.classList.contains('picked'); }).map(function (v) { return v.getAttribute('data-v'); });
-      if (vars.length) lines.push(id + ' — ' + (picked.length ? picked.join(', ') : 'без вибору'));
-      else lines.push(id + ':' + (t ? '' : ' без відповіді'));
+      if (vars.length) lines.push(id + ' — ' + (picked.length ? picked.join(', ') : 'no pick'));
+      else lines.push(id + ':' + (t ? '' : ' no answer'));
       if (picked.length || t) any = true;
-      if (t) lines.push('  коментар: ' + t.replace(/\r?\n/g, '\n  '));
+      if (t) lines.push('  comment: ' + t.replace(/\r?\n/g, '\n  '));
     });
-    if (!any) { say('err', 'Обери хоча б один варіант або напиши коментар.'); return; }
+    if (!any) { say('err', word('none')); return; }
     var text = lines.join('\n');
     if (location.protocol === 'file:') {
-      var copied = function () { say('err', 'Сторінка відкрита не з віджета — відповідь скопійовано, встав у чат.'); };
-      try { navigator.clipboard.writeText(text).then(copied, function () { say('err', 'Сторінка відкрита не з віджета — надіслати нікуди.'); }); } catch (e) { say('err', 'Сторінка відкрита не з віджета — надіслати нікуди.'); }
+      var copied = function () { say('err', word('copied')); };
+      try { navigator.clipboard.writeText(text).then(copied, function () { say('err', word('nowhere')); }); } catch (e) { say('err', word('nowhere')); }
       return;
     }
     sendBtn.disabled = true;
-    say('', 'Надсилаю…');
+    say('', word('sending'));
     fetch('/answer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: location.pathname, text: text }) })
-      .then(function (r) { if (!r.ok) throw 0; say('ok', 'Надіслано — Claude уже бачить відповідь.'); })
-      .catch(function () { sendBtn.disabled = false; say('err', 'Не вдалося надіслати — віджет закритий?'); });
+      .then(function (r) { if (!r.ok) throw 0; say('ok', word('sent')); })
+      .catch(function () { sendBtn.disabled = false; say('err', word('failed')); });
   }
 })();

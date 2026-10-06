@@ -142,11 +142,14 @@ pub fn open<R: Runtime>(
     let url = page_url(sid, name)
         .parse()
         .map_err(|_| "bad url".to_string())?;
+    let lang = crate::i18n::lang();
     WebviewWindowBuilder::new(app, label, WebviewUrl::CustomProtocol(url))
-        .title(format!("Питання від «{title}»"))
+        .title(lang.tr("round").replace("{title}", title))
         .inner_size(w, h)
         .position(x + (ww - w) / 2.0, y + (wh - h) / 2.0)
         .focused(true)
+        // The kit words its buttons in the widget's language (skill/widget-round/round-kit.js).
+        .initialization_script(&format!("window.__ROUND_LANG='{}';", lang.code()))
         .initialization_script(SIZE_SCRIPT)
         .build()
         .map_err(|e| e.to_string())?;

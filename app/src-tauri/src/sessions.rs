@@ -323,7 +323,8 @@ fn compose(
         let e = map.entry(sid.clone()).or_insert_with(|| Session {
             sid: sid.clone(),
             local: None,
-            title: format!("{} · термінал", folder_name(&h.cwd)),
+            // Named by the widget in its own language: "<folder> · terminal".
+            title: String::new(),
             state: String::new(),
             what: String::new(),
             detail: String::new(),
@@ -353,7 +354,7 @@ fn compose(
         let e = map.entry(r.sid.clone()).or_insert_with(|| Session {
             sid: r.sid.clone(),
             local: None,
-            title: format!("Сесія {}", &r.sid[..r.sid.len().min(8)]),
+            title: String::new(),
             state: String::new(),
             what: String::new(),
             detail: String::new(),
@@ -362,7 +363,7 @@ fn compose(
             round: None,
         });
         e.state = "wait".into();
-        e.what = "Питає тебе".into();
+        e.what = "@ask".into();
         e.detail = r.title.clone();
         e.since = r.since;
         e.round = Some(r.name.clone());

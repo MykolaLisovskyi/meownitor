@@ -9,13 +9,25 @@
   var S={mode:'cat',dock:null,open:false,idleOpen:false,back:false};
   var big=Pixel.Sprite('cat','catB',3,'idle'),small=Pixel.Sprite('cat','catB',2,'idle');
   // Settings live on the back of the card (config.json through Rust); SET holds what the back shows.
-  var KINDS={cat:['cat','catB','Котик'],blob:['blob','blob','Краплинка'],ghost:['ghost','ghost','Привидок']};
-  var CFG={kind:'cat',sound:true},SET={autostart:false,hook:null,confirm:null,err:''};
+  var t=I18N.t;
+  var KINDS={cat:['cat','catB'],blob:['blob','blob'],ghost:['ghost','ghost']};
+  var CFG={kind:'cat',sound:true},SET={autostart:false,hook:null,confirm:null,err:'',ver:''};
   var minis={};Object.keys(KINDS).forEach(function(k){minis[k]=Pixel.Sprite(KINDS[k][0],KINDS[k][1],2,'idle');});
 
   // Live data from Rust: the session list (sessions.rs) and the plan limits (limits.rs).
   var LIST=[],moodOverride=null,lastDone=0,LIM=null,LIMWHY='',LIMAT=0;
-  var ICON={Bash:'ConsoleLine',PowerShell:'ConsoleLine',Edit:'PencilOutline',Write:'PencilOutline',MultiEdit:'PencilOutline',NotebookEdit:'PencilOutline',Read:'FileDocumentOutline',Grep:'Magnify',Glob:'Magnify',WebFetch:'Internet',WebSearch:'Internet',Task:'Magic',Agent:'Magic','Агент':'Magic',Skill:'Magic','Думає':'Loading','Питає тебе':'HelpCircleOutline','Готово — твоя черга':'CheckCircleOutline','Зупинилась з помилкою':'AlertCircleOutline'};
+  var ICON={Bash:'ConsoleLine',PowerShell:'ConsoleLine',Edit:'PencilOutline',Write:'PencilOutline',MultiEdit:'PencilOutline',NotebookEdit:'PencilOutline',Read:'FileDocumentOutline',Grep:'Magnify',Glob:'Magnify',WebFetch:'Internet',WebSearch:'Internet',Task:'Magic',Agent:'Magic',Skill:'Magic','@agent':'Magic','@think':'Loading','@ask':'HelpCircleOutline','@perm':'KeyOutline','@done':'CheckCircleOutline','@failed':'AlertCircleOutline'};
+  // The hook writes a tool's name or one of these codes (bin/hook.rs); a hook from before the
+  // codes wrote the Ukrainian words themselves.
+  var LEGACY={'Думає':'@think','Питає тебе':'@ask','Агент':'@agent','Чекає дозволу':'@perm','Готово — твоя черга':'@done','Зупинилась з помилкою':'@failed'};
+  function whatOf(s){
+    var w=s.what||'',x='',m=/^Чекає дозволу · (.+)$/.exec(w);
+    if(m){w='@perm';x=m[1];}
+    w=LEGACY[w]||w;
+    return {code:w,text:(w.charAt(0)==='@'?t('what.'+w.slice(1)):w)+(x?' · '+x:'')+(s.detail?' · '+s.detail:'')};
+  }
+  // Rust leaves the title empty for a session Desktop does not know; it is named here, in the UI's language.
+  function titleOf(s){return s.title||(s.cwd?t('terminal',{name:s.cwd.replace(/[\\\/]+$/,'').split(/[\\\/]/).pop()}):t('session',{id:s.sid.slice(0,8)}));}
 
   function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function ic(n){return '<svg class="i"><use href="#'+n+'"/></svg>';}
@@ -23,69 +35,72 @@
   // How long the current state has lasted — or, for an idle session, how long ago it was active.
   function ago(since){
     var s=Math.max(0,Math.floor((Date.now()-since)/1000));
-    if(s<60)return s+' с';var m=Math.floor(s/60);if(m<60)return m+' хв';
-    var h=Math.floor(m/60);if(h<24)return h+' г'+(m%60?' '+(m%60)+' хв':'');return 'вчора';
+    if(s<60)return t('u.s',{n:s});var m=Math.floor(s/60);if(m<60)return t('u.min',{n:m});
+    var h=Math.floor(m/60);if(h<24)return hm(h,m%60);return t('yesterday');
   }
+  function hm(h,m){return t('u.h',{n:h})+(m?' '+t('u.min',{n:m}):'');}
   function until(ts){
     var m=Math.max(0,Math.round((ts-Date.now())/60000));
-    if(m<60)return m+' хв';var h=Math.floor(m/60);if(h<24)return h+' г'+(m%60?' '+(m%60)+' хв':'');
-    var d=Math.floor(h/24);return d+' д'+(h%24?' '+(h%24)+' г':'');
+    if(m<60)return t('u.min',{n:m});var h=Math.floor(m/60);if(h<24)return hm(h,m%60);
+    var d=Math.floor(h/24);return t('u.d',{n:d})+(h%24?' '+t('u.h',{n:h%24}):'');
   }
   // The usage response lists the limits the way Desktop's usage card shows them: `limits` —
   // session (5 hours), weekly_all, weekly_scoped per model — each with a percent and a reset time.
   // Older responses only had five_hour / seven_day objects with a utilization; those are the fallback.
   function normLimits(d){
     if(d&&Array.isArray(d.limits)&&d.limits.length)return d.limits.filter(function(x){return typeof x.percent==='number';}).map(function(x){
-      var name=x.kind==='session'?'5 годин':x.kind==='weekly_all'?'Тиждень':(x.scope&&x.scope.model&&x.scope.model.display_name)||x.kind;
+      var name=x.kind==='session'?t('lim.session'):x.kind==='weekly_all'?t('lim.week'):(x.scope&&x.scope.model&&x.scope.model.display_name)||x.kind;
       return {l:name,p:Math.round(x.percent),r:Date.parse(x.resets_at)};
     });
     var keys=Object.keys(d||{}).filter(function(k){return d[k]&&typeof d[k]==='object'&&typeof d[k].utilization==='number'&&/^(five_hour|seven_day)/.test(k);});
     keys.sort(function(a,b){var o=function(k){return k==='five_hour'?0:k==='seven_day'?1:2;};return o(a)-o(b)||a.localeCompare(b);});
     return keys.map(function(k){
-      var v=d[k],r=v.resets_at,label=k==='five_hour'?'5 годин':k==='seven_day'?'Тиждень':k.replace('seven_day_','');
+      var v=d[k],r=v.resets_at,label=k==='five_hour'?t('lim.session'):k==='seven_day'?t('lim.week'):k.replace('seven_day_','');
       label=label.charAt(0).toUpperCase()+label.slice(1);
       return {l:label,p:Math.round(v.utilization),r:typeof r==='number'?(r<1e12?r*1000:r):Date.parse(r)};
     });
   }
   function maxLim(){return LIM&&LIM.length?LIM.reduce(function(a,b){return b.p>a.p?b:a;}):null;}
   function limHTML(){
-    if(!LIM||!LIM.length)return '<div class="lim"><div class="nolim">Ліміти: '+(LIMWHY==='net'?'нема з’єднання':LIMWHY==='busy'?'сервер просить зачекати, спробую пізніше':LIMWHY==='login'?'увійди в Claude Code — <code>claude</code> у терміналі':'…')+'</div></div>';
+    if(!LIM||!LIM.length)return '<div class="lim"><div class="nolim">'+t('lim.none',{why:LIMWHY==='net'||LIMWHY==='busy'||LIMWHY==='login'?t('lim.'+LIMWHY):'…'})+'</div></div>';
     // Through a hiccup (busy / net) the last numbers stay; once they are a few minutes old, say so.
-    var stale=LIMWHY!=='ok'&&Date.now()-LIMAT>5*60000?'<div class="nolim st">Оновлено <span data-ago="'+LIMAT+'">'+agoTxt(LIMAT)+'</span></div>':'';
+    var stale=LIMWHY!=='ok'&&Date.now()-LIMAT>5*60000?'<div class="nolim st">'+t('lim.updated',{ago:'<span data-ago="'+LIMAT+'">'+agoTxt(LIMAT)+'</span>'})+'</div>':'';
     return '<div class="lim">'+LIM.map(function(l){return '<div class="lr"><span class="ll">'+esc(l.l)+'</span><span class="lp">'+l.p+'%</span><span class="lb"><i style="width:'+Math.min(100,l.p)+'%;background:'+col(l.p)+'"></i></span><span class="rs">'+ic('Autorenew')+'<span data-reset="'+l.r+'">'+until(l.r)+'</span></span></div>';}).join('')+stale+'</div>';
   }
-  function agoTxt(t){var a=ago(t);return a==='вчора'?a:a+' тому';}
-  function iconFor(s){if(s.what.indexOf('Чекає дозволу')===0)return 'KeyOutline';return ICON[s.what]||(s.state==='wait'?'HelpCircleOutline':'ConsoleLine');}
+  function agoTxt(ts){var a=ago(ts);return a===t('yesterday')?a:t('ago',{t:a});}
+  function iconFor(s,code){return ICON[code]||(s.state==='wait'?'HelpCircleOutline':'ConsoleLine');}
   function row(s){
-    var h='<div class="row '+s.state+'" data-local="'+esc(s.local||'')+'"><span class="dot '+s.state+'"></span><div class="tx"><div class="l1"><span class="nm">'+esc(s.title)+'</span><span class="tm" data-since="'+s.since+'">'+ago(s.since)+'</span></div>';
-    if(s.state!=='idle')h+='<div class="ac">'+ic(iconFor(s))+'<span class="at">'+esc(s.what+(s.detail?' · '+s.detail:''))+'</span></div>';
-    if(s.round)h+='<div class="qa"><button type="button" class="qbtn" data-act="round" data-sid="'+esc(s.sid)+'" data-round="'+esc(s.round)+'" data-title="'+esc(s.title)+'">'+ic('HelpCircleOutline')+'Відповісти</button></div>';
-    else if(s.state==='wait'&&s.local)h+='<div class="qa"><button type="button" class="qbtn" data-act="open">'+ic('HelpCircleOutline')+'Відкрити в Desktop</button></div>';
+    var title=titleOf(s),w=whatOf(s);
+    var h='<div class="row '+s.state+'" data-local="'+esc(s.local||'')+'"><span class="dot '+s.state+'"></span><div class="tx"><div class="l1"><span class="nm">'+esc(title)+'</span><span class="tm" data-since="'+s.since+'">'+ago(s.since)+'</span></div>';
+    if(s.state!=='idle')h+='<div class="ac">'+ic(iconFor(s,w.code))+'<span class="at">'+esc(w.text)+'</span></div>';
+    if(s.round)h+='<div class="qa"><button type="button" class="qbtn" data-act="round" data-sid="'+esc(s.sid)+'" data-round="'+esc(s.round)+'" data-title="'+esc(title)+'">'+ic('HelpCircleOutline')+t('answer')+'</button></div>';
+    else if(s.state==='wait'&&s.local)h+='<div class="qa"><button type="button" class="qbtn" data-act="open">'+ic('HelpCircleOutline')+t('open.desktop')+'</button></div>';
     return h+'</div></div>';
   }
   function by(k){return LIST.filter(function(s){return s.state===k;});}
   function active(){return LIST.filter(function(s){return s.state!=='idle';});}
-  function grp(t,arr){return arr.length?'<div class="gh"><span>'+t+'</span><span>'+arr.length+'</span></div>'+arr.map(row).join(''):'';}
+  function grp(title,arr){return arr.length?'<div class="gh"><span>'+title+'</span><span>'+arr.length+'</span></div>'+arr.map(row).join(''):'';}
   function card(edge){
     var idle=by('idle'),act=active();
-    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('ConsoleLine')+'<span class="tt">Claude</span><span class="ct">'+(act.length?act.length+' активні':'усе тихо')+'</span><span class="sp"></span><button type="button" class="ib" data-act="flip" title="Налаштування">'+ic('CogOutline')+'</button>'+(edge?'':'<button type="button" class="ib" data-act="min" title="Згорнути">'+ic('Minus')+'</button>')+'</div>'+
-      '<div class="ss">'+grp('Чекають на тебе',by('wait'))+grp('Працюють',by('run'))+grp('Твоя черга',by('done'))+
-      (idle.length?'<button type="button" class="grp'+(S.idleOpen?' open':'')+'" data-act="idle">'+ic('ChevronRight')+'Неактивні<span class="n">'+idle.length+'</span></button>'+(S.idleOpen?idle.map(row).join(''):''):'')+
-      (LIST.length?'':'<div class="empty">Сесій за добу нема</div>')+'</div>'+
+    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('ConsoleLine')+'<span class="tt">Claude</span><span class="ct">'+(act.length?t('active',{n:act.length}):t('quiet'))+'</span><span class="sp"></span><button type="button" class="ib" data-act="flip" title="'+t('settings')+'">'+ic('CogOutline')+'</button>'+(edge?'':'<button type="button" class="ib" data-act="min" title="'+t('minimize')+'">'+ic('Minus')+'</button>')+'</div>'+
+      '<div class="ss">'+grp(t('g.wait'),by('wait'))+grp(t('g.run'),by('run'))+grp(t('g.done'),by('done'))+
+      (idle.length?'<button type="button" class="grp'+(S.idleOpen?' open':'')+'" data-act="idle">'+ic('ChevronRight')+t('g.idle')+'<span class="n">'+idle.length+'</span></button>'+(S.idleOpen?idle.map(row).join(''):''):'')+
+      (LIST.length?'':'<div class="empty">'+t('empty')+'</div>')+'</div>'+
       limHTML()+'</div>';
   }
   function hookHTML(){
     var h=SET.hook||{installed:false};
-    if(SET.confirm==='install')return '<div class="hk"><div class="hk1">Додати хук віджета на 11 подій у ~/.claude/settings.json? Інші хуки не зачіпаю, копія файлу буде поруч.</div><div class="hkb"><button type="button" class="btn p" data-act="hook-yes">Додати</button><button type="button" class="btn" data-act="hook-no">Ні</button></div></div>';
-    if(SET.confirm==='uninstall')return '<div class="hk"><div class="hk1">Прибрати хук віджета з ~/.claude/settings.json? Сесії перестануть оновлюватись. Інші хуки не зачіпаю, копія файлу буде поруч.</div><div class="hkb"><button type="button" class="btn p" data-act="hook-yes">Прибрати</button><button type="button" class="btn" data-act="hook-no">Ні</button></div></div>';
-    return '<div class="opt"><span>Хук Claude Code<br><small class="'+(h.installed?'okc':'mut')+'">'+(h.installed?'стоїть — сесії видно':'не стоїть — сесій не видно')+'</small></span><button type="button" class="btn" data-act="hook">'+(h.installed?'Зняти':'Поставити')+'</button></div>'+(SET.err?'<div class="err">'+esc(SET.err)+'</div>':'');
+    if(SET.confirm==='install')return '<div class="hk"><div class="hk1">'+t('hook.ask.install')+'</div><div class="hkb"><button type="button" class="btn p" data-act="hook-yes">'+t('hook.add')+'</button><button type="button" class="btn" data-act="hook-no">'+t('no')+'</button></div></div>';
+    if(SET.confirm==='uninstall')return '<div class="hk"><div class="hk1">'+t('hook.ask.uninstall')+'</div><div class="hkb"><button type="button" class="btn p" data-act="hook-yes">'+t('hook.remove')+'</button><button type="button" class="btn" data-act="hook-no">'+t('no')+'</button></div></div>';
+    return '<div class="opt"><span>'+t('hook')+'<br><small class="'+(h.installed?'okc':'mut')+'">'+t(h.installed?'hook.on':'hook.off')+'</small></span><button type="button" class="btn" data-act="hook">'+t(h.installed?'hook.uninstall':'hook.install')+'</button></div>'+(SET.err?'<div class="err">'+esc(SET.err)+'</div>':'');
   }
   function settings(edge){
-    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('CogOutline')+'<span class="tt">Налаштування</span><span class="sp"></span><button type="button" class="ib" data-act="flip" title="Назад до сесій">'+ic('Close')+'</button></div>'+
-      '<div class="sec"><div class="sl">Персонаж</div><div class="kinds">'+Object.keys(KINDS).map(function(k){return '<button type="button" class="kd'+(CFG.kind===k?' on':'')+'" data-act="kind" data-kind="'+k+'"><span class="mini" data-mini="'+k+'"></span><span>'+KINDS[k][2]+'</span></button>';}).join('')+'</div></div>'+
-      '<div class="opt"><span>Звук, коли сесія питає</span><button type="button" class="tgl'+(CFG.sound!==false?' on':'')+'" data-act="sound" title="Звук"></button></div>'+
-      '<div class="opt"><span>Запускати з Windows</span><button type="button" class="tgl'+(SET.autostart?' on':'')+'" data-act="autostart" title="Автозапуск"></button></div>'+
-      hookHTML()+'<div class="ver">Claude Widget 0.1</div></div>';
+    return '<div class="wg'+(edge?' e'+edge:'')+'"><div class="hdr grab">'+ic('CogOutline')+'<span class="tt">'+t('settings')+'</span><span class="sp"></span><button type="button" class="ib" data-act="flip" title="'+t('back')+'">'+ic('Close')+'</button></div>'+
+      '<div class="sec"><div class="sl">'+t('character')+'</div><div class="kinds">'+Object.keys(KINDS).map(function(k){return '<button type="button" class="kd'+(CFG.kind===k?' on':'')+'" data-act="kind" data-kind="'+k+'"><span class="mini" data-mini="'+k+'"></span><span>'+t('kind.'+k)+'</span></button>';}).join('')+'</div></div>'+
+      '<div class="opt"><span>'+t('language')+'</span><span class="seg">'+I18N.LANGS.map(function(l){return '<button type="button" class="'+(I18N.lang()===l[0]?'on':'')+'" data-act="lang" data-lang="'+l[0]+'">'+l[1]+'</button>';}).join('')+'</span></div>'+
+      '<div class="opt"><span>'+t('sound')+'</span><button type="button" class="tgl'+(CFG.sound!==false?' on':'')+'" data-act="sound" title="'+t('sound.t')+'"></button></div>'+
+      '<div class="opt"><span>'+t('autostart')+'</span><button type="button" class="tgl'+(SET.autostart?' on':'')+'" data-act="autostart" title="'+t('autostart.t')+'"></button></div>'+
+      hookHTML()+'<div class="ver">'+esc(SET.ver)+'</div></div>';
   }
   function strip(edge){var m=maxLim(),act=active();return '<div class="strip e'+edge+'">'+(act.length?act.map(function(s){return '<span class="dot '+s.state+'"></span>';}).join(''):'<span class="dot"></span>')+(m?'<span class="vb"><i style="height:'+Math.min(100,m.p)+'%;background:'+col(m.p)+'"></i></span>':'')+'</div>';}
   // The cat's mood follows the sessions: someone waiting for you beats everything, then work;
@@ -228,7 +243,8 @@
     else if(act==='flip')await flip();
     else if(act==='kind'){setKind(a.dataset.kind);save({kind:CFG.kind});render();align();}
     else if(act==='sound'){CFG.sound=CFG.sound===false;save({sound:CFG.sound});render();align();if(CFG.sound)chirp();}
-    else if(act==='autostart'){try{SET.autostart=await invoke('autostart_set',{on:!SET.autostart});SET.err='';}catch(x){SET.err='Автозапуск: '+x;}render();align();}
+    else if(act==='lang'){I18N.set(a.dataset.lang);await invoke('set_lang',{lang:I18N.lang()});await relayout();}
+    else if(act==='autostart'){try{SET.autostart=await invoke('autostart_set',{on:!SET.autostart});SET.err='';}catch(x){SET.err=t('autostart.err',{e:x});}render();align();}
     else if(act==='hook'){SET.confirm=SET.hook&&SET.hook.installed?'uninstall':'install';await relayout();}
     else if(act==='hook-no'){SET.confirm=null;await relayout();}
     else if(act==='hook-yes'){var which=SET.confirm;SET.confirm=null;try{SET.hook=await invoke(which==='install'?'hook_install':'hook_uninstall');SET.err='';}catch(x){SET.err=String(x);}await relayout();}
@@ -273,6 +289,8 @@
 
   (async function start(){
     var hint=await invoke('start_hint'),how=hint[0]||'',cfg=await invoke('get_config')||{};
+    I18N.set(cfg.lang);
+    try{SET.ver=(await window.__TAURI__.app.getName())+' '+(await window.__TAURI__.app.getVersion());}catch(e){}
     if(cfg.kind)setKind(cfg.kind);
     if(cfg.sound===false)CFG.sound=false;
     if(cfg.idleOpen)S.idleOpen=true;
@@ -283,7 +301,7 @@
     if(how.indexOf('dock-')===0){S.dock=how.charAt(5);S.open=/open$/.test(how);S.hold=S.open;}
     if(hint[1])moodOverride=hint[1];
     LIST=await invoke('sessions');setLimits(await invoke('limits'));applyMood();
-    if(hint[2]){var rp=hint[2].split('/');invoke('open_round',{sid:rp[0],name:rp[1],title:'перевірка'});}
+    if(hint[2]){var rp=hint[2].split('/');invoke('open_round',{sid:rp[0],name:rp[1],title:t('check')});}
     render();align();
     var p=await invoke('poll'),sc=p.scale,z=measure(sc),k=p.work;
     // Back where it was left: move there first, so the clamp uses that monitor (or, if that monitor

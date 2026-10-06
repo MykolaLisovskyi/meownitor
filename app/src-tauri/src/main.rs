@@ -5,6 +5,7 @@
 
 mod config;
 mod hooks;
+mod i18n;
 mod limits;
 mod msix;
 mod rounds;
@@ -15,7 +16,7 @@ use serde::Serialize;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
-use tauri::{Emitter, PhysicalPosition, PhysicalSize, State, WebviewWindow};
+use tauri::{AppHandle, Emitter, PhysicalPosition, PhysicalSize, State, WebviewWindow, Wry};
 
 /// Cursor-to-window offset captured when a drag starts.
 #[derive(Default)]
@@ -141,6 +142,56 @@ fn set_config(patch: serde_json::Value) -> serde_json::Value {
     config::merge(&patch)
 }
 
+/// The card switched language: remember it and re-word the tray menu.
+#[tauri::command]
+fn set_lang(app: AppHandle, lang: String) -> Result<(), String> {
+    config::merge(&serde_json::json!({ "lang": if lang == "uk" { "uk" } else { "en" } }));
+    if let Some(tray) = app.tray_by_id("main") {
+        tray.set_menu(Some(tray_menu(&app).map_err(|e| e.to_string())?))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+/// The tray menu: the mood and character switches (for trying them out) and Quit.
+fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+    let l = i18n::lang();
+    let item = |id: &str| MenuItem::with_id(app, id, l.tr(id), true, None::<&str>);
+    let moods = Submenu::with_items(
+        app,
+        l.tr("mood"),
+        true,
+        &[
+            &item("mood:auto")?,
+            &item("mood:idle")?,
+            &item("mood:work")?,
+            &item("mood:ask")?,
+            &item("mood:done")?,
+            &item("mood:sleep")?,
+            &item("mood:tired")?,
+        ],
+    )?;
+    let kinds = Submenu::with_items(
+        app,
+        l.tr("character"),
+        true,
+        &[
+            &item("kind:cat")?,
+            &item("kind:blob")?,
+            &item("kind:ghost")?,
+        ],
+    )?;
+    Menu::with_items(
+        app,
+        &[
+            &moods,
+            &kinds,
+            &PredefinedMenuItem::separator(app)?,
+            &item("quit")?,
+        ],
+    )
+}
+
 #[tauri::command]
 fn autostart_get(app: tauri::AppHandle) -> bool {
     use tauri_plugin_autostart::ManagerExt;
@@ -239,6 +290,7 @@ fn main() {
             open_session,
             get_config,
             set_config,
+            set_lang,
             autostart_get,
             autostart_set,
             hook_status,
@@ -252,39 +304,10 @@ fn main() {
             drag_end
         ])
         .setup(|app| {
-            let item = |id: &str, text: &str| MenuItem::with_id(app, id, text, true, None::<&str>);
-            let moods = Submenu::with_items(
-                app,
-                "Настрій",
-                true,
-                &[
-                    &item("mood:auto", "Авто — за сесіями")?,
-                    &item("mood:idle", "Відпочиває")?,
-                    &item("mood:work", "Працює")?,
-                    &item("mood:ask", "Питає тебе")?,
-                    &item("mood:done", "Готово")?,
-                    &item("mood:sleep", "Спить")?,
-                    &item("mood:tired", "Ліміт під межею")?,
-                ],
-            )?;
-            let kinds = Submenu::with_items(
-                app,
-                "Персонаж",
-                true,
-                &[
-                    &item("kind:cat", "Котик")?,
-                    &item("kind:blob", "Краплинка")?,
-                    &item("kind:ghost", "Привидок")?,
-                ],
-            )?;
-            let quit = item("quit", "Вийти")?;
-            let menu = Menu::with_items(
-                app,
-                &[&moods, &kinds, &PredefinedMenuItem::separator(app)?, &quit],
-            )?;
-            TrayIconBuilder::new()
+            let menu = tray_menu(app.handle())?;
+            TrayIconBuilder::with_id("main")
                 .icon(app.default_window_icon().unwrap().clone())
-                .tooltip("Claude Widget")
+                .tooltip(app.package_info().name.clone())
                 .menu(&menu)
                 .on_menu_event(|app, event| {
                     let id = event.id.as_ref();
