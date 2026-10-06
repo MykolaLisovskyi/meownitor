@@ -7,17 +7,17 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// The widget's data folder (sessions.rs `data_dir`): ~\.claude-widget on Windows, where Claude
+/// The widget's data folder (sessions.rs `data_dir`): ~\.meownitor on Windows, where Claude
 /// Desktop's package doesn't redirect our writes as it does under AppData.
 fn state_dir() -> Option<PathBuf> {
     #[cfg(windows)]
-    let base = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".claude-widget"));
+    let base = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".meownitor"));
     #[cfg(not(windows))]
     let base = std::env::var_os("HOME").map(|h| {
         PathBuf::from(h)
             .join("Library")
             .join("Application Support")
-            .join("ClaudeWidget")
+            .join("Meownitor")
     });
     base.map(|b| b.join("sessions"))
 }
@@ -188,7 +188,7 @@ fn round_command(args: &[String]) -> Option<i32> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
-        eprintln!("usage: claude-widget-hook wait|drop <round-name>   (letters, digits, - and _)");
+        eprintln!("usage: meownitor-hook wait|drop <round-name>   (letters, digits, - and _)");
         return Some(2);
     }
     if !dir.join(format!("{name}.html")).exists() {

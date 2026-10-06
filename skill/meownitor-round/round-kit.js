@@ -1,5 +1,5 @@
 /*
-  Claude Widget round kit — what every question page does (round-kit.css has the look and the
+  Meownitor round kit — what every question page does (round-kit.css has the look and the
   markup): the Dark/Light switch, picking variants (one per question, several in .q[data-multi]),
   drawings fitted to their cards ([data-w]), numbered markers and frames drawn on the element they
   point at ([data-mark], [data-frame]) or at a screenshot's pixels ([data-px]), a visual opened large,

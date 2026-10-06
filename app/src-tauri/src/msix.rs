@@ -1,15 +1,18 @@
 // Claude Desktop on Windows is an MSIX package, and everything it starts — Claude Code sessions, our
 // hook, a widget launched from a session — sees %LOCALAPPDATA%, %APPDATA% and HKCU\Software through
 // the package's private copy (…\Packages\Claude_<id>\LocalCache): what lands there, `claude` in a
-// terminal and the rest of Windows never see. Hence the data folder is ~\.claude-widget, which no
+// terminal and the rest of Windows never see. Hence the data folder is ~\.meownitor, which no
 // package redirects (sessions.rs), and a widget started inside the package starts itself again
-// outside it, so its start-with-Windows entry goes into the real registry. Data from before the move
-// (%LOCALAPPDATA%\ClaudeWidget, as either side sees it) is copied over once; the hook copy there is
-// swapped for this version, so sessions already running write to the new folder as well, and a
-// round asked before the move gets its answer in the old folder too, where its `wait` is watching.
+// outside it, so its start-with-Windows entry goes into the real registry. Data from before — when
+// it was Claude Widget, in ~\.claude-widget and before that %LOCALAPPDATA%\ClaudeWidget, as either
+// side sees it — is copied over once; the hook copy there is swapped for this version, so sessions
+// already running write to the new folder as well, and a round asked before the move gets its
+// answer in the old folder too, where its `wait` is watching.
 use std::path::{Path, PathBuf};
 
 const MOVED: &str = "MOVED.txt";
+/// The hook's name in the old folders.
+const OLD_HOOK: &str = "claude-widget-hook.exe";
 
 /// Claude Desktop's private copies of AppData: …\Packages\Claude_<publisher id>\LocalCache.
 pub fn claude_packages() -> Vec<PathBuf> {
@@ -26,17 +29,18 @@ pub fn claude_packages() -> Vec<PathBuf> {
     Vec::new()
 }
 
-/// Where the data lived before ~\.claude-widget.
+/// Where the data lived before ~\.meownitor, newest first: what is copied keeps what came first.
 fn legacy_dirs() -> Vec<PathBuf> {
     if !cfg!(windows) {
         return Vec::new();
     }
+    let home = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".claude-widget"));
     let plain = std::env::var_os("LOCALAPPDATA").map(|l| PathBuf::from(l).join("ClaudeWidget"));
     let packaged = claude_packages()
         .into_iter()
         .map(|p| p.join("Local").join("ClaudeWidget"));
-    plain
-        .into_iter()
+    home.into_iter()
+        .chain(plain)
         .chain(packaged)
         .filter(|d| d.is_dir())
         .collect()
@@ -95,9 +99,25 @@ fn swap_hook(old: &Path) {
     crate::watchdog::log(&format!("updated the old hook copy {}", old.display()));
 }
 
+/// Started with Windows as Claude Widget: that entry gives way to one under this name, for this exe.
+/// Release builds only, as with swap_hook.
+fn move_autostart(name: &str) {
+    let Some(old) = crate::lifecycle::autolaunch("Claude Widget") else {
+        return;
+    };
+    if cfg!(debug_assertions) || !old.is_enabled().unwrap_or(false) || old.disable().is_err() {
+        return;
+    }
+    match crate::lifecycle::autolaunch(name).map(|a| a.enable()) {
+        Some(Ok(())) => crate::watchdog::log("moved start-with-Windows from Claude Widget"),
+        _ => crate::watchdog::log("could not move start-with-Windows from Claude Widget"),
+    }
+}
+
 /// Once per old folder: config, sessions and rounds come over; every start: the old hook copy is
 /// kept current and settings.json points at the new one.
-pub fn migrate() {
+pub fn migrate(name: &str) {
+    move_autostart(name);
     let Some(new) = crate::sessions::data_dir() else {
         return;
     };
@@ -114,11 +134,14 @@ pub fn migrate() {
             copy_missing(&old.join("rounds"), &new.join("rounds"), 1);
             let _ = std::fs::write(
                 old.join(MOVED),
-                format!("Claude Widget keeps its data in {} now.\n", new.display()),
+                format!(
+                    "Claude Widget is Meownitor now and keeps its data in {}.\n",
+                    new.display()
+                ),
             );
             crate::watchdog::log(&format!("copied the data from {}", old.display()));
         }
-        swap_hook(&old.join("bin").join(crate::hooks::exe_name()));
+        swap_hook(&old.join("bin").join(OLD_HOOK));
     }
     if crate::hooks::elsewhere() {
         match crate::hooks::install() {
@@ -148,7 +171,7 @@ pub fn legacy_answers(sid: &str, name: &str) -> Vec<PathBuf> {
 #[cfg(windows)]
 fn container() -> Option<PathBuf> {
     let local = PathBuf::from(std::env::var_os("LOCALAPPDATA")?);
-    let probe = format!("claude-widget-probe-{}.tmp", std::process::id());
+    let probe = format!("meownitor-probe-{}.tmp", std::process::id());
     std::fs::write(local.join(&probe), b"").ok()?;
     let copy = claude_packages()
         .into_iter()

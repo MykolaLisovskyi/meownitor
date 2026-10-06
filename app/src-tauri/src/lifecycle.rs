@@ -11,7 +11,7 @@ fn marker() -> Option<PathBuf> {
 
 /// The start-with-Windows entry as tauri-plugin-autostart makes it: named after the app, this exe, no args.
 #[cfg(windows)]
-fn autolaunch(name: &str) -> Option<auto_launch::AutoLaunch> {
+pub fn autolaunch(name: &str) -> Option<auto_launch::AutoLaunch> {
     let exe = std::env::current_exe().ok()?;
     auto_launch::AutoLaunchBuilder::new()
         .set_app_name(name)
@@ -21,7 +21,7 @@ fn autolaunch(name: &str) -> Option<auto_launch::AutoLaunch> {
 }
 
 #[cfg(not(windows))]
-fn autolaunch(_: &str) -> Option<auto_launch::AutoLaunch> {
+pub fn autolaunch(_: &str) -> Option<auto_launch::AutoLaunch> {
     None
 }
 

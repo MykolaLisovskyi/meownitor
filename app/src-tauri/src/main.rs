@@ -99,15 +99,15 @@ fn place(window: WebviewWindow, x: i32, y: i32, w: u32, h: u32) {
     let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
-/// How to start: `CLAUDE_WIDGET_START` (card, dock-l, dock-r, dock-r-open), `CLAUDE_WIDGET_MOOD` and
-/// `CLAUDE_WIDGET_ROUND` (<session id>/<round name>, opened right away) —
+/// How to start: `MEOWNITOR_START` (card, settings, dock-l, dock-r, dock-r-open), `MEOWNITOR_MOOD` and
+/// `MEOWNITOR_ROUND` (<session id>/<round name>, opened right away) —
 /// so every mode can be opened and captured without touching the mouse.
 #[tauri::command]
 fn start_hint() -> (Option<String>, Option<String>, Option<String>) {
     (
-        std::env::var("CLAUDE_WIDGET_START").ok(),
-        std::env::var("CLAUDE_WIDGET_MOOD").ok(),
-        std::env::var("CLAUDE_WIDGET_ROUND").ok(),
+        std::env::var("MEOWNITOR_START").ok(),
+        std::env::var("MEOWNITOR_MOOD").ok(),
+        std::env::var("MEOWNITOR_ROUND").ok(),
     )
 }
 
@@ -277,7 +277,7 @@ fn main() {
     if msix::relaunch_outside() {
         return;
     }
-    msix::migrate();
+    msix::migrate(&context.package_info().name);
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,

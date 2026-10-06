@@ -60,16 +60,16 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
-/// ~\.claude-widget on Windows: not under AppData, which Claude Desktop's package redirects (msix.rs).
+/// ~\.meownitor on Windows: not under AppData, which Claude Desktop's package redirects (msix.rs).
 pub fn data_dir() -> Option<PathBuf> {
     #[cfg(windows)]
-    return std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".claude-widget"));
+    return std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".meownitor"));
     #[cfg(not(windows))]
     return std::env::var_os("HOME").map(|h| {
         PathBuf::from(h)
             .join("Library")
             .join("Application Support")
-            .join("ClaudeWidget")
+            .join("Meownitor")
     });
 }
 

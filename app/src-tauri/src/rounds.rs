@@ -1,10 +1,10 @@
 // Questions from Claude. A session writes one HTML page — a description and one question or a
-// group of them — into rounds/<session id>/<name>.html (`claude-widget-hook where`) and waits for
-// rounds/<session id>/<name>.answer.md (`claude-widget-hook wait <name>`). The widget lists pending
+// group of them — into rounds/<session id>/<name>.html (`meownitor-hook where`) and waits for
+// rounds/<session id>/<name>.answer.md (`meownitor-hook wait <name>`). The widget lists pending
 // rounds, opens one in a window centred on the widget's monitor and serves it through the `round`
 // scheme, which also takes the page's POST /answer — the same contract as the design pages — and
 // POST /size, the page's own height, so the window fits its content. A round the session withdraws
-// (`claude-widget-hook drop <name>` leaves <name>.dropped) leaves the list and closes its window.
+// (`meownitor-hook drop <name>` leaves <name>.dropped) leaves the list and closes its window.
 use std::path::PathBuf;
 use std::time::Duration;
 use tauri::http::{Request, Response};
@@ -39,7 +39,7 @@ fn title_of(html: &str) -> Option<String> {
     (!t.is_empty()).then(|| t.to_string())
 }
 
-/// Rounds that have no answer yet and that their session hasn't withdrawn (`claude-widget-hook drop`).
+/// Rounds that have no answer yet and that their session hasn't withdrawn (`meownitor-hook drop`).
 pub fn pending() -> Vec<Pending> {
     dir().map(|root| pending_in(&root)).unwrap_or_default()
 }
@@ -148,7 +148,7 @@ pub fn open<R: Runtime>(
         .inner_size(w, h)
         .position(x + (ww - w) / 2.0, y + (wh - h) / 2.0)
         .focused(true)
-        // The kit words its buttons in the widget's language (skill/widget-round/round-kit.js).
+        // The kit words its buttons in the widget's language (skill/meownitor-round/round-kit.js).
         .initialization_script(&format!("window.__ROUND_LANG='{}';", lang.code()))
         .initialization_script(SIZE_SCRIPT)
         .build()

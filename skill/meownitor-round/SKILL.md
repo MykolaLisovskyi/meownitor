@@ -1,11 +1,11 @@
 ---
-name: widget-round
-description: Ask the user a question with visual options through the Claude Widget — one HTML page (a short description and one question or a group of them, the options drawn side by side) that the user answers in a window on their desktop; the answer comes back to you on its own. Use when a decision is easier made by seeing the options — UI looks, layouts, designs, diagrams, anything visual or rich — when you show a result for the user's OK (a render, a screen) with what changed framed and numbered, or when the user asks to be asked visually.
+name: meownitor-round
+description: Ask the user a question with visual options through Meownitor — one HTML page (a short description and one question or a group of them, the options drawn side by side) that the user answers in a window on their desktop; the answer comes back to you on its own. Use when a decision is easier made by seeing the options — UI looks, layouts, designs, diagrams, anything visual or rich — when you show a result for the user's OK (a render, a screen) with what changed framed and numbered, or when the user asks to be asked visually.
 ---
 
 # Ask through the widget
 
-The Claude Widget (the pixel cat on the user's desktop) shows your session as asking, chirps once,
+Meownitor (the pixel cat on the user's desktop) shows your session as asking, chirps once,
 and opens your page in a window centred on the user's monitor when they press «Answer». Their
 answer reaches you through a background waiter — no polling, no copy-paste.
 
@@ -15,8 +15,8 @@ answer reaches you through a background waiter — no polling, no copy-paste.
    (from `CLAUDE_CODE_SESSION_ID`, which Claude Code sets) and puts the kit next to the page:
 
    ```bash
-   k="$USERPROFILE/.claude/skills/widget-round"   # this skill's folder
-   d=$("$USERPROFILE/.claude-widget/bin/claude-widget-hook.exe" where) && cp "$k/round-kit.css" "$k/round-kit.js" "$d/" && echo "$d"
+   k="$USERPROFILE/.claude/skills/meownitor-round"   # this skill's folder
+   d=$("$USERPROFILE/.meownitor/bin/meownitor-hook.exe" where) && cp "$k/round-kit.css" "$k/round-kit.js" "$d/" && echo "$d"
    ```
 
 2. **Write the page** as `<folder>/<name>.html` — `<name>` is letters, digits, `-` and `_`. Start from a
@@ -47,7 +47,7 @@ answer reaches you through a background waiter — no polling, no copy-paste.
 3. **Wait in the background** (Bash with `run_in_background: true`):
 
    ```bash
-   "$USERPROFILE/.claude-widget/bin/claude-widget-hook.exe" wait <name>
+   "$USERPROFILE/.meownitor/bin/meownitor-hook.exe" wait <name>
    ```
 
    Then tell the user in one line that the question is waiting in the widget, and end the turn (or go
@@ -62,7 +62,7 @@ answer reaches you through a background waiter — no polling, no copy-paste.
    stops asking — it hides the question and closes its window, and the waiter exits by itself:
 
    ```bash
-   "$USERPROFILE/.claude-widget/bin/claude-widget-hook.exe" drop <name>
+   "$USERPROFILE/.meownitor/bin/meownitor-hook.exe" drop <name>
    ```
 
    Withdraw a round the same way when it no longer matters — the question changed, or you are asking

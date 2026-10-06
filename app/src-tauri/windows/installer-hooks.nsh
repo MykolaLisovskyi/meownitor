@@ -16,9 +16,10 @@
 
 !macro NSIS_HOOK_POSTUNINSTALL
   ; «Delete the application data» takes the widget's own folder too: sessions, settings, the hook's copy
-  ; (~\.claude-widget; %LOCALAPPDATA%\ClaudeWidget is where versions before it kept them).
+  ; (~\.meownitor; ~\.claude-widget and %LOCALAPPDATA%\ClaudeWidget are where it kept them as Claude Widget).
   ${If} $DeleteAppDataCheckboxState = 1
   ${AndIf} $UpdateMode <> 1
+    RMDir /r "$PROFILE\.meownitor"
     RMDir /r "$PROFILE\.claude-widget"
     RMDir /r "$LOCALAPPDATA\ClaudeWidget"
   ${EndIf}

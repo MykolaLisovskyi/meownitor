@@ -1,6 +1,7 @@
 // Installing and removing our Claude Code hook from ~/.claude/settings.json. Only our own entries
-// are touched (recognised by "claude-widget-hook" in the command), every write is preceded by a
-// dated backup next to the file, and the rest of the file keeps its keys in their order.
+// are touched (recognised by "meownitor-hook" in the command, or "claude-widget-hook" from when it
+// was Claude Widget), every write is preceded by a dated backup next to the file, and the rest of
+// the file keeps its keys in their order.
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::PathBuf;
@@ -18,7 +19,11 @@ const EVENTS: [&str; 11] = [
     "SubagentStart",
     "SubagentStop",
 ];
-const MARK: &str = "claude-widget-hook";
+const MARKS: [&str; 2] = ["meownitor-hook", "claude-widget-hook"];
+
+fn ours(command: &str) -> bool {
+    MARKS.iter().any(|m| command.contains(m))
+}
 
 #[derive(Serialize)]
 pub struct Status {
@@ -37,9 +42,9 @@ fn settings_path() -> Option<PathBuf> {
 
 pub fn exe_name() -> &'static str {
     if cfg!(windows) {
-        "claude-widget-hook.exe"
+        "meownitor-hook.exe"
     } else {
-        "claude-widget-hook"
+        "meownitor-hook"
     }
 }
 
@@ -66,7 +71,7 @@ fn is_ours(entry: &Value) -> bool {
             hs.iter().any(|h| {
                 h.get("command")
                     .and_then(|c| c.as_str())
-                    .map_or(false, |c| c.contains(MARK))
+                    .map_or(false, ours)
             })
         })
 }
@@ -89,7 +94,7 @@ fn our_commands(s: &Value) -> Vec<String> {
         .filter_map(|e| e.get("hooks")?.as_array())
         .flatten()
         .filter_map(|h| h.get("command")?.as_str())
-        .filter(|c| c.contains(MARK))
+        .filter(|c| ours(c))
         .map(String::from)
         .collect()
 }
@@ -131,7 +136,7 @@ fn write_with_backup(s: &Value) -> Result<(), String> {
             .unwrap_or(0);
         std::fs::copy(
             &p,
-            p.with_file_name(format!("settings.json.bak-claude-widget-{stamp}")),
+            p.with_file_name(format!("settings.json.bak-meownitor-{stamp}")),
         )
         .map_err(|e| format!("backup failed: {e}"))?;
     }
@@ -177,10 +182,7 @@ pub fn install() -> Result<Status, String> {
             .filter_map(|e| e.get_mut("hooks")?.as_array_mut())
             .flatten()
         {
-            if h.get("command")
-                .and_then(|c| c.as_str())
-                .is_some_and(|c| c.contains(MARK))
-            {
+            if h.get("command").and_then(|c| c.as_str()).is_some_and(ours) {
                 h["command"] = json!(command);
                 had = true;
             }
@@ -278,9 +280,10 @@ mod tests {
             .replace('\\', "/");
         std::fs::write(
             &settings,
-            std::fs::read_to_string(&settings)
-                .unwrap()
-                .replace(&path, "C:/old/ClaudeWidget/bin/claude-widget-hook.exe"),
+            std::fs::read_to_string(&settings).unwrap().replace(
+                &path,
+                "C:/Users/x/.claude-widget/bin/claude-widget-hook.exe",
+            ),
         )
         .unwrap();
         assert!(elsewhere());
@@ -312,7 +315,7 @@ mod tests {
             .filter(|e| {
                 e.file_name()
                     .to_string_lossy()
-                    .starts_with("settings.json.bak-claude-widget-")
+                    .starts_with("settings.json.bak-meownitor-")
             })
             .count();
         assert!(backups >= 1, "backups written");

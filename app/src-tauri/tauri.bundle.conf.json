@@ -1,7 +1,7 @@
 {
   "bundle": {
     "resources": {
-      "target/release/claude-widget-hook.exe": "claude-widget-hook.exe"
+      "target/release/meownitor-hook.exe": "meownitor-hook.exe"
     }
   }
 }
