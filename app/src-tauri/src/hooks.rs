@@ -67,12 +67,9 @@ fn is_ours(entry: &Value) -> bool {
     entry
         .get("hooks")
         .and_then(|h| h.as_array())
-        .map_or(false, |hs| {
-            hs.iter().any(|h| {
-                h.get("command")
-                    .and_then(|c| c.as_str())
-                    .map_or(false, ours)
-            })
+        .is_some_and(|hs| {
+            hs.iter()
+                .any(|h| h.get("command").and_then(|c| c.as_str()).is_some_and(ours))
         })
 }
 
@@ -110,7 +107,7 @@ pub fn elsewhere() -> bool {
 fn count_ours(s: &Value) -> usize {
     s.get("hooks").and_then(|h| h.as_object()).map_or(0, |o| {
         o.values()
-            .filter(|arr| arr.as_array().map_or(false, |a| a.iter().any(is_ours)))
+            .filter(|arr| arr.as_array().is_some_and(|a| a.iter().any(is_ours)))
             .count()
     })
 }

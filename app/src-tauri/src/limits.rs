@@ -157,10 +157,9 @@ fn token(rejected: Option<&str>) -> Result<String, Why> {
         serde_json::to_string_pretty(&creds).unwrap_or_default(),
     )
     .is_ok()
+        && std::fs::rename(&tmp, &path).is_err()
     {
-        if std::fs::rename(&tmp, &path).is_err() {
-            let _ = std::fs::remove_file(&tmp);
-        }
+        let _ = std::fs::remove_file(&tmp);
     }
     Ok(new_access)
 }

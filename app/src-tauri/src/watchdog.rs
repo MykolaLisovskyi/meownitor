@@ -213,7 +213,7 @@ mod procs {
         };
         let (mut c, mut e, mut k, mut u) = (z, z, z, z);
         (unsafe { GetProcessTimes(h, &mut c, &mut e, &mut k, &mut u) } != 0)
-            .then(|| (c.dwHighDateTime as u64) << 32 | c.dwLowDateTime as u64)
+            .then_some((c.dwHighDateTime as u64) << 32 | c.dwLowDateTime as u64)
     }
 
     /// Our WebView2 processes: msedgewebview2.exe descended from this process through

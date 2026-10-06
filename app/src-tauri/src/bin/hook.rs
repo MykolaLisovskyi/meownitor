@@ -135,8 +135,7 @@ fn late_answers(rounds: &Path, sid: &str) -> String {
         else {
             continue;
         };
-        if modified(&p).map_or(true, |t| t < since) || dir.join(format!("{name}.dropped")).exists()
-        {
+        if modified(&p).is_none_or(|t| t < since) || dir.join(format!("{name}.dropped")).exists() {
             continue;
         }
         if let Ok(text) = std::fs::read_to_string(&p) {

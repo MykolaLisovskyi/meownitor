@@ -59,7 +59,7 @@ fn pending_in(root: &std::path::Path) -> Vec<Pending> {
         };
         for f in files.flatten() {
             let p = f.path();
-            if p.extension().map_or(true, |x| x != "html") {
+            if p.extension().is_none_or(|x| x != "html") {
                 continue;
             }
             let name = p
@@ -149,7 +149,7 @@ pub fn open<R: Runtime>(
         .position(x + (ww - w) / 2.0, y + (wh - h) / 2.0)
         .focused(true)
         // The kit words its buttons in the widget's language (skill/meownitor-round/round-kit.js).
-        .initialization_script(&format!("window.__ROUND_LANG='{}';", lang.code()))
+        .initialization_script(format!("window.__ROUND_LANG='{}';", lang.code()))
         .initialization_script(SIZE_SCRIPT)
         .build()
         .map_err(|e| e.to_string())?;

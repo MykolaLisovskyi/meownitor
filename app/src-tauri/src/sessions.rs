@@ -143,10 +143,10 @@ fn list_json(dir: &Path, depth: u32, prefix: &str, out: &mut Vec<PathBuf>) {
             if depth > 0 {
                 list_json(&p, depth - 1, prefix, out);
             }
-        } else if p.extension().map_or(false, |x| x == "json")
+        } else if p.extension().is_some_and(|x| x == "json")
             && p.file_name()
                 .and_then(|n| n.to_str())
-                .map_or(false, |n| n.starts_with(prefix))
+                .is_some_and(|n| n.starts_with(prefix))
         {
             out.push(p);
         }
@@ -369,7 +369,7 @@ fn compose(
         e.round = Some(r.name.clone());
     }
     let mut list: Vec<Session> = map.into_values().collect();
-    list.sort_by(|a, b| b.since.cmp(&a.since));
+    list.sort_by_key(|s| std::cmp::Reverse(s.since));
     list
 }
 
