@@ -144,8 +144,9 @@ open src-tauri/target/release/bundle/macos/Meownitor.app
 ```
 
 Then steps 2–3 and 5 as above; the skill goes to `~/.claude/skills/meownitor-round`. The data lives in
-`~/Library/Application Support/Meownitor`. Not yet on macOS: the plan limits (Claude Code keeps its
-sign-in in the Keychain there, not in `~/.claude/.credentials.json`).
+`~/Library/Application Support/Meownitor`. The plan limits use Claude Code's sign-in from the
+Keychain (macOS may ask once to let `security` read «Claude Code-credentials» — **Always Allow**). There
+the widget only reads it and never refreshes it, so an expired one waits for Claude Code to renew it.
 
 ### Using it
 
@@ -261,7 +262,7 @@ widget starts.
 
 ## Roadmap
 
-- macOS: the plan limits (the sign-in from the Keychain), a release build.
+- macOS: a release build (signed and notarized).
 
 ## Contributing
 

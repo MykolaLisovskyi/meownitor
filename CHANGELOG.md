@@ -3,7 +3,10 @@
 ## Unreleased
 
 - macOS, experimental: builds and runs from source (`tauri.bundle.macos.conf.json`), the window is
-  transparent, sessions and question rounds work. The plan limits are not there yet.
+  transparent, sessions and question rounds work.
+- macOS: the plan limits, from Claude Code's sign-in in the Keychain — read only, never refreshed.
+- Petting follows the polled cursor rather than mouse moves: macOS sends none to a window that is
+  never active.
 - The `meownitor-round` skill finds the hook on Windows and on macOS.
 - The autostart setting reads «Open at login» on macOS.
 

@@ -114,8 +114,9 @@ open src-tauri/target/release/bundle/macos/Meownitor.app
 ```
 
 Далі ті самі кроки з налаштуваннями й хуком; скіл кладіть у `~/.claude/skills/meownitor-round`. Дані
-лежать у `~/Library/Application Support/Meownitor`. Чого на macOS ще нема: лімітів плану (Claude Code
-тримає там вхід у Keychain, а не в `~/.claude/.credentials.json`).
+лежать у `~/Library/Application Support/Meownitor`. Ліміти плану беруть вхід Claude Code з Keychain
+(macOS може раз спитати, чи дати `security` прочитати «Claude Code-credentials» — **Always Allow**).
+Віджет його лише читає й не оновлює, тож прострочений чекає, поки його оновить Claude Code.
 
 ### Як користуватись
 
