@@ -249,6 +249,10 @@ widget starts.
 
 - macOS: the sign-in from the Keychain, the data in `~/Library/Application Support`.
 
+## Contributing
+
+Bug reports, ideas and pull requests are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md). Security issues: [SECURITY.md](SECURITY.md).
+
 ## License
 
 [MIT](LICENSE) © 2026 Vladyslav Yurchenko

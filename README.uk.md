@@ -158,6 +158,10 @@ Claude Desktop — за бажанням: з ним видно назви сес
 
 Див. [англійський README](README.md#build-from-source).
 
+## Участь
+
+Повідомлення про помилки, ідеї й pull request-и — див. [CONTRIBUTING.md](CONTRIBUTING.md) (англійською). Вразливості — [SECURITY.md](SECURITY.md).
+
 ## Ліцензія
 
 [MIT](LICENSE) © 2026 Vladyslav Yurchenko
