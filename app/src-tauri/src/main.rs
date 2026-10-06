@@ -6,6 +6,7 @@
 mod config;
 mod hooks;
 mod i18n;
+mod lifecycle;
 mod limits;
 mod msix;
 mod rounds;
@@ -266,6 +267,13 @@ fn drag_end(window: WebviewWindow, drag: State<DragOffset>) -> Poll {
 }
 
 fn main() {
+    let context = tauri::generate_context!();
+    // The installer's calls (windows/installer-hooks.nsh) do their work and exit, with no window.
+    match std::env::args().nth(1).as_deref() {
+        Some("--uninstall") => return lifecycle::uninstall(&context.package_info().name),
+        Some("--restore") => return lifecycle::restore(&context.package_info().name),
+        _ => {}
+    }
     if msix::relaunch_outside() {
         return;
     }
@@ -319,12 +327,13 @@ fn main() {
                     }
                 })
                 .build(app)?;
+            hooks::refresh_copy();
             sessions::spawn(app.handle().clone());
             limits::spawn(app.handle().clone());
             watchdog::spawn(app.handle().clone());
             Ok(())
         })
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while running the widget")
         .run(|_, event| {
             // With "quit from the tray" or the watchdog's lines before it, or neither (a closed window).

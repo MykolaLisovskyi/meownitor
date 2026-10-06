@@ -19,6 +19,14 @@ cargo build            # debug: target\debug\claude-widget.exe
 cargo build --release  # release: target\release\claude-widget.exe
 ```
 
+The installer, per user and with no admin rights:
+
+```powershell
+cargo build --release --bin claude-widget-hook
+cd ..
+npx tauri build --bundles nsis --config src-tauri/tauri.bundle.conf.json
+```
+
 The tray icon has the mood and character switches (for trying them out) and Quit.
 
 ## Sessions

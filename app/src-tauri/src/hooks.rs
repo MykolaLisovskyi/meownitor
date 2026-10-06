@@ -22,7 +22,7 @@ const MARK: &str = "claude-widget-hook";
 
 #[derive(Serialize)]
 pub struct Status {
-    installed: bool,
+    pub installed: bool,
     events: usize,
     settings: String,
 }
@@ -191,6 +191,25 @@ pub fn install() -> Result<Status, String> {
     }
     write_with_backup(&s)?;
     Ok(status())
+}
+
+/// After an update the installer leaves a new hook next to the widget while Claude Code keeps
+/// running the copy in the data folder: while the hook is installed, keep that copy the same.
+/// Release builds only, so running a debug build never swaps the hook under Claude.
+pub fn refresh_copy() {
+    if cfg!(debug_assertions) {
+        return;
+    }
+    let (Some(target), Ok(exe)) = (installed_hook(), std::env::current_exe()) else {
+        return;
+    };
+    let source = exe.with_file_name(exe_name());
+    if source == target || !source.exists() || !target.exists() || !status().installed {
+        return;
+    }
+    if std::fs::read(&source).ok() != std::fs::read(&target).ok() {
+        let _ = std::fs::copy(&source, &target);
+    }
 }
 
 /// Removes only our entries; an event left with nothing is removed too.

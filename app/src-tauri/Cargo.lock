@@ -352,6 +352,7 @@ dependencies = [
 name = "claude-widget"
 version = "0.1.0"
 dependencies = [
+ "auto-launch",
  "serde",
  "serde_json",
  "tauri",
