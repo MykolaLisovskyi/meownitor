@@ -85,9 +85,11 @@ jobs:
 
           Compress-Archive -Path skill/meownitor-round -DestinationPath "$out/meownitor-round-skill.zip"
 
-          Get-ChildItem $out | ForEach-Object {
-            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
-          } | Set-Content "$out/SHA256SUMS.txt"
+          # LF line endings, so `sha256sum -c SHA256SUMS.txt` works as is.
+          $sums = Get-ChildItem $out | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)`n"
+          }
+          [IO.File]::WriteAllText((Join-Path $out.FullName 'SHA256SUMS.txt'), -join $sums)
 
       - name: Release notes
         shell: pwsh
