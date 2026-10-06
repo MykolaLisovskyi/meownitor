@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- The README's banner (and the repository's social preview), 1280×640: the name and the line under
+     it, the card with the cat on it, a ghost that asks, a blob asleep and the strip docked at the edge —
+     each a live docs/mock.html. hero.html?theme=light|dark&name=…; docs/shoot.py renders it. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>hero</title>
+<style>
+  html,body{margin:0;width:1280px;height:640px;overflow:hidden}
+  body{position:relative;font-family:"Segoe UI",system-ui,sans-serif;
+    background:radial-gradient(90% 120% at 18% 10%,#2B3E63 0%,#151D2E 52%,#0D121C 100%);color:#F2F6FF}
+  body::before{content:"";position:absolute;inset:0;
+    background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+    background-size:32px 32px;mask-image:radial-gradient(80% 90% at 70% 50%,#000 30%,transparent 100%)}
+  .light body{background:radial-gradient(90% 120% at 18% 10%,#FFFFFF 0%,#E9EEF8 55%,#DCE3F0 100%);color:#1C1F23}
+  .light body::before{background-image:linear-gradient(rgba(20,40,80,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(20,40,80,.05) 1px,transparent 1px)}
+  iframe{position:absolute;border:0;background:transparent;overflow:hidden}
+  .text{position:absolute;left:80px;top:172px;width:520px}
+  .name{font-size:84px;font-weight:800;letter-spacing:-2.5px;line-height:1}
+  .tag{margin-top:22px;font-size:27px;line-height:1.35;color:#C3CCDB}
+  .light .tag{color:#4B5462}
+  .chips{display:flex;gap:10px;margin-top:30px}
+  .chips span{font-size:16px;font-weight:600;padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.08);color:#C3CCDB}
+  .light .chips span{background:rgba(20,40,80,.07);color:#4B5462}
+  .say{position:absolute;font-size:15px;color:#8E9AAE;text-align:center;width:140px}
+  .light .say{color:#7C8694}
+</style>
+</head>
+<body>
+<div class="text">
+  <div class="name" id="name">Name</div>
+  <div class="tag">A pixel cat on your desktop that keeps an eye on your Claude Code sessions.</div>
+  <div class="chips"><span>Sessions</span><span>Plan limits</span><span>Questions with pictures</span></div>
+</div>
+<iframe id="card" style="left:640px;top:36px;width:380px;height:600px"></iframe>
+<iframe id="ghost" style="left:1046px;top:120px;width:160px;height:150px"></iframe>
+<div class="say" style="left:1056px;top:250px">asks you</div>
+<iframe id="blob" style="left:1046px;top:350px;width:160px;height:150px"></iframe>
+<div class="say" style="left:1056px;top:480px">asleep</div>
+<iframe id="strip" style="left:1236px;top:250px;width:70px;height:200px"></iframe>
+<script>
+  var q=new URLSearchParams(location.search),th=q.get('theme')||'dark',name=q.get('name')||'Name';
+  if(th==='light')document.documentElement.className='light';
+  document.getElementById('name').textContent=name;
+  var base='mock.html?bg=none&lang=en&theme='+th+'&name='+encodeURIComponent(name);
+  document.getElementById('card').src=base+'&how=card&mood=work';
+  document.getElementById('ghost').src=base+'&how=cat&kind=ghost&mood=ask';
+  document.getElementById('blob').src=base+'&how=cat&kind=blob&mood=sleep';
+  document.getElementById('strip').src=base+'&how=dock-r';
+</script>
+</body>
+</html>

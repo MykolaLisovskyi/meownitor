@@ -1,0 +1,71 @@
+<!doctype html>
+<!-- The widget's own page (app/src) outside the app, on made-up sessions and limits, for the README
+     pictures: open docs/mock.html?lang=en&how=card (how: cat, card, settings, dock; mood: idle, work,
+     ask, done, sleep, tired; kind: cat, blob, ghost; theme: dark, light; bg: none for a transparent
+     page) and screenshot it. docs/hero.html puts several on one picture; docs/shoot.py renders them. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>widget mock</title>
+<script>
+  // The app's own stylesheet, with its light/dark switch forced when ?theme= says so.
+  (function(){
+    var th=new URLSearchParams(location.search).get('theme'),x=new XMLHttpRequest();
+    x.open('GET','../app/src/style.css',false);x.send();
+    var css=x.responseText;
+    if(th==='light')css=css.replace('@media (prefers-color-scheme: light)','@media all');
+    if(th==='dark')css=css.replace('@media (prefers-color-scheme: light)','@media not all');
+    document.write('<style>'+css+'</style>');
+    if(th)document.documentElement.setAttribute('data-theme',th);
+  })();
+</script>
+<style>
+  html,body{width:100%;height:100%}
+  html.bg{background:radial-gradient(120% 90% at 30% 0%,#2A3B5C 0%,#141B2A 55%,#0E131D 100%)}
+  html.bg[data-theme=light]{background:radial-gradient(120% 90% at 30% 0%,#F5F8FF 0%,#E4EAF5 60%,#D9E1EE 100%)}
+  #root{left:var(--pad,24px)!important;top:var(--pad,24px)!important;right:auto!important}
+</style>
+<script>
+(function(){
+  var q=new URLSearchParams(location.search),now=Date.now(),min=60000;
+  if(q.get('bg')!=='none')document.documentElement.className='bg';
+  if(q.get('pad'))document.documentElement.style.setProperty('--pad',q.get('pad')+'px');
+  var lang=q.get('lang')||'en',uk=lang==='uk';
+  var sessions=[
+    {sid:'a1',local:'local_1',title:uk?'Оновити залежності':'Bump the dependencies',state:'wait',what:'@ask',detail:'',since:now-2*min,cwd:'',round:'deps'},
+    {sid:'b2',local:'local_2',title:uk?'Рефакторинг auth middleware':'Refactor the auth middleware',state:'run',what:'Edit',detail:'session.rs',since:now-7*min,cwd:''},
+    {sid:'c3',local:null,title:'',state:'run',what:'Bash',detail:uk?'Запустити тести':'Run the test suite',since:now-3*min,cwd:'C:/src/api-server'},
+    {sid:'d4',local:'local_4',title:uk?'Сторінка цін':'Pricing page copy',state:'done',what:'@done',detail:'',since:now-4*min,cwd:''},
+    {sid:'e5',local:'local_5',title:uk?'Нічна збірка падає':'Nightly build is red',state:'idle',what:'',detail:'',since:now-95*min,cwd:''},
+    {sid:'f6',local:'local_6',title:uk?'Документація API':'API docs pass',state:'idle',what:'',detail:'',since:now-200*min,cwd:''}
+  ];
+  var limits={status:'ok',at:now,data:{limits:[
+    {kind:'session',percent:+(q.get('p5')||46),resets_at:new Date(now+(2*60+14)*min).toISOString()},
+    {kind:'weekly_all',percent:+(q.get('pw')||23),resets_at:new Date(now+(3*24*60+5*60)*min).toISOString()}
+  ]}};
+  var how=q.get('how')||'card';
+  var reply={
+    start_hint:[how==='card'||how==='settings'||how.indexOf('dock')===0?how:'',q.get('mood'),null],
+    get_config:{lang:lang,kind:q.get('kind')||'cat',idleOpen:q.get('idle')==='open'},
+    poll:{cursor:[-1e9,-1e9],win:{x:0,y:0,w:1200,h:900},work:{x:0,y:0,w:1200,h:900},scale:1},
+    sessions:sessions,limits:limits,autostart_get:true,hook_status:{installed:true,events:11}
+  };
+  window.__TAURI__={
+    core:{invoke:function(cmd){return Promise.resolve(reply[cmd]!==undefined?reply[cmd]:null);}},
+    event:{listen:function(){return Promise.resolve(function(){});}},
+    app:{getName:function(){return Promise.resolve(q.get('name')||'Meownitor');},getVersion:function(){return Promise.resolve('0.1.0');}}
+  };
+})();
+</script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+  // The icons live in the app page; take them from there.
+  (function(){var x=new XMLHttpRequest();try{x.open('GET','../app/src/index.html',false);x.send();var m=/<svg width="0"[\s\S]*?<\/svg>/.exec(x.responseText);if(m)document.body.insertAdjacentHTML('afterbegin',m[0]);}catch(e){}})();
+</script>
+<script src="../app/src/i18n.js"></script>
+<script src="../app/src/pixel.js"></script>
+<script src="../app/src/widget.js"></script>
+</body>
+</html>

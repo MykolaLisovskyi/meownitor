@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- The three characters in their moods, for the README: each a live docs/mock.html.
+     moods.html?theme=light|dark; docs/shoot.py renders it. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>moods</title>
+<style>
+  html,body{margin:0;background:transparent;font-family:"Segoe UI",system-ui,sans-serif;color:#8E9AAE}
+  .light body{color:#7C8694}
+  table{border-collapse:collapse;margin:8px}
+  td,th{padding:0;text-align:center;font-size:13px;font-weight:400}
+  th{padding-bottom:6px}
+  td.k{padding-right:10px;text-align:right}
+  iframe{display:block;width:124px;height:112px;border:0;background:transparent}
+</style>
+</head>
+<body>
+<table id="t"></table>
+<script>
+  var q=new URLSearchParams(location.search),th=q.get('theme')||'dark';
+  if(th==='light')document.documentElement.className='light';
+  var moods=[['idle','resting'],['work','working'],['ask','asks you'],['done','done'],['tired','near the limit'],['sleep','asleep']];
+  var kinds=['cat','blob','ghost'],t=document.getElementById('t');
+  t.insertAdjacentHTML('beforeend','<tr><th></th>'+moods.map(function(m){return '<th>'+m[1]+'</th>';}).join('')+'</tr>');
+  kinds.forEach(function(k){
+    t.insertAdjacentHTML('beforeend','<tr>'+'<td class="k">'+k+'</td>'+moods.map(function(m){
+      return '<td><iframe src="mock.html?bg=none&how=cat&theme='+th+'&kind='+k+'&mood='+m[0]+'"></iframe></td>';
+    }).join('')+'</tr>');
+  });
+</script>
+</body>
+</html>
