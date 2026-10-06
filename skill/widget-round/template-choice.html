@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- The title is what the widget shows in the session's row, the window title and the answer's first line: keep it short. -->
+<title>Картка сесій — де показати ліміт</title>
+<link rel="stylesheet" href="round-kit.css">
+<script src="round-kit.js"></script>
+<style>
+/* The drawings' own styles: their own m- classes, in the kit's tokens so they follow Dark/Light. */
+.m-card { width: 272px; border: 1px solid var(--line2); border-radius: 12px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; font-size: 12px; }
+.m-head { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+.m-head b { flex: 1; font-size: 12.5px; }
+.m-strip { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); color: var(--ink2); font-size: 11px; }
+.m-bar { flex: 1; height: 6px; border-radius: 3px; background: var(--fill1); overflow: hidden; }
+.m-bar > i { display: block; height: 100%; width: 62%; border-radius: 3px; background: var(--primary); }
+.m-rows { display: grid; gap: 11px; padding: 12px; }
+.m-badge { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 8px; background: var(--warning-light); color: var(--warning); }
+.m-tip { margin: 8px 12px 12px auto; width: 170px; padding: 8px 10px; border: 1px solid var(--line2); border-radius: 8px; background: var(--pop); box-shadow: var(--shadow); font-size: 11px; color: var(--ink2); line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Картка сесій — де показати ліміт</h1>
+  <p class="sub">Що вирішуємо і навіщо — одне-два речення. <b>Обери варіант у кожному блоці</b> і натисни «Надіслати» внизу;
+    картинку можна відкрити більшою клацом.</p>
+</header>
+
+<!-- One section.q per question. data-q is its name in the answer (1, 2… or В1, В2…; numbered in order when left out).
+     data-multi lets the user pick several variants. -->
+<section class="q" data-q="1">
+  <h2>Де показати, скільки лишилось до ліміту?</h2>
+  <p class="why"><b>Зараз:</b> факти, з яких обираємо, — одним-двома реченнями; що диктує код чи прошивка, з <code>file:line</code>.</p>
+
+  <!-- The variants side by side: data-v is the letter in the answer (A, B… when left out). data-rec marks the one you
+       advise («раджу»), data-now the current state («як зараз»); class wide gives a variant the whole row.
+       Draw each in .vb — HTML, inline SVG or canvas, the real look, not a description. -->
+  <div class="vars">
+    <div class="var" data-v="A" data-now>
+      <h3>Лише в налаштуваннях</h3>
+      <div class="vb center">
+        <div class="m-card">
+          <div class="m-head"><i class="sk dot" style="--h:16px"></i><b>Сесії</b><i class="sk" style="--w:34px"></i></div>
+          <div class="m-rows">
+            <div class="sk-row"><i class="sk dot"></i><i class="sk" style="--w:70%"></i></div>
+            <div class="sk-row"><i class="sk dot"></i><i class="sk" style="--w:52%"></i></div>
+            <div class="sk-row"><i class="sk dot"></i><i class="sk" style="--w:62%"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="pm"><div class="p">нічого не міняється</div><div class="m">щоб побачити ліміт, треба перевернути картку</div></div>
+    </div>
+
+    <!-- One new thing in a card of things that stay: a frame round it (data-frame="tag"), the rest drawn as skeleton. -->
+    <div class="var" data-v="B" data-rec>
+      <h3>Смужка під заголовком</h3>
+      <div class="vb center">
+        <div class="m-card">
+          <div class="m-head"><i class="sk dot" style="--h:16px"></i><b>Сесії</b><i class="sk" style="--w:34px"></i></div>
+          <div class="m-strip" data-frame="нове" data-pad="2"><span>5 год</span><div class="m-bar"><i></i></div><span>62%</span></div>
+          <div class="m-rows">
+            <div class="sk-row"><i class="sk dot"></i><i class="sk" style="--w:70%"></i></div>
+            <div class="sk-row"><i class="sk dot"></i><i class="sk" style="--w:52%"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="pm"><div class="r">Раджу: видно завжди і не забирає місця в рядках</div><div class="p">одна смужка — найближчий ліміт</div><div class="m">мінус 28 px висоти</div></div>
+    </div>
+
+    <!-- The change in several places: a number on each (data-mark="1", data-at = corner) and the legend under it. -->
+    <div class="var" data-v="C">
+      <h3>Бейдж і підказка</h3>
+      <div class="vb center">
+        <div class="m-card">
+          <div class="m-head"><i class="sk dot" style="--h:16px"></i><b>Сесії</b><span class="m-badge" data-mark="1" data-at="tr">62%</span></div>
+          <div class="m-tip" data-mark="2" data-at="l">5 год — 62%, скид о 14:20<br>Тиждень — 31%, скид у пн</div>
+          <div class="m-rows" style="padding-top:0">
+            <div class="sk-row"><i class="sk dot"></i><i class="sk" style="--w:60%"></i></div>
+          </div>
+        </div>
+      </div>
+      <ol class="legend"><li>бейдж у заголовку — найближчий ліміт</li><li>на наведення — усі ліміти з часом скидання</li></ol>
+      <div class="pm"><div class="p">компактно</div><div class="m">деталі лише на наведення</div></div>
+    </div>
+  </div>
+  <!-- The comment field comes by itself; a click on a number in a picture puts «C②» into it. -->
+</section>
+
+<!-- Variants with nothing to draw become compact rows with a radio (a checkbox under data-multi). -->
+<section class="q" data-q="2" data-multi>
+  <h2>Що ще показати в смужці? <small style="font-weight:400;color:var(--ink3)">можна кілька</small></h2>
+  <div class="vars">
+    <div class="var" data-rec><h3>Час до скидання</h3></div>
+    <div class="var"><h3>Назву ліміту</h3><p>«5 год» чи «тиждень»</p></div>
+    <div class="var"><h3>Колір за рівнем</h3><p>жовтий від 70%, червоний від 90%</p></div>
+  </div>
+</section>
+
+</body>
+</html>

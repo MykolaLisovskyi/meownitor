@@ -1,0 +1,217 @@
+/*
+  Claude Widget round kit — the look of a question page (the widget-round skill). The page links it
+  and round-kit.js and holds only its own markup and the styles of its drawings; the markup is in
+  template-choice.html and template-review.html, the rules in SKILL.md.
+
+  Dark unless the user switches it (the switch, in the bar at the foot, is remembered); the user
+  reads these pages for hours and a white page hurts the eyes. The tokens below are the ones the
+  user approved for question pages; drawings that use them follow the switch.
+
+  Markup:  header.top > h1, p.sub
+           section.q[data-q][data-multi] > h2, p.why, .fact, .fig, ol.legend,
+             .vars > .var[data-v][data-rec|data-now].wide > h3, .vb, p, .pm > .r/.p/.m, ol.legend
+  Visuals (.vb, .shot, .fig) take annotations: [data-mark], [data-frame] on any element inside,
+  or .mkn / .frame placed by coordinates; [data-w] draws at that width and scales to fit.
+*/
+
+html {
+  color-scheme: dark;
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono: "Cascadia Mono", Consolas, ui-monospace, monospace;
+  --page: #090D14; --field: #0E131C; --card: #141C2B; --pop: #182235; --box: #111926;
+  --line: #26324A; --line2: #35435D;
+  --ink: #F2F6FF; --ink2: #C3CCDB; --ink3: #8E9AAE; --ink4: #5E6A80;
+  --fill0: rgba(255,255,255,.07); --fill1: rgba(255,255,255,.12); --fill2: rgba(255,255,255,.18); --hover: rgba(255,255,255,.05);
+  --primary: #54A9FF; --primary-light: rgba(84,169,255,.2); --primary-line: rgba(84,169,255,.55);
+  --success: #5DC264; --success-light: rgba(93,194,100,.2);
+  --warning: #FFAE43; --warning-light: rgba(255,174,67,.2);
+  --danger: #FC725A; --danger-light: rgba(252,114,90,.2);
+  --anno: #E7C66B; --anno-ink: #1B1400; --anno-fill: rgba(231,198,107,.10);
+  --shadow: 0 16px 40px rgba(0,0,0,.55), 0 2px 8px rgba(0,0,0,.35);
+  --scrim: rgba(5,8,13,.72);
+  /* annotations sit on drawings and screenshots of either theme: one colour, a dark hairline round it */
+  --mk: #F2C14E; --mk-ink: #1B1400; --mk-edge: rgba(16,11,0,.6); --veil: rgba(6,9,15,.58);
+}
+html[data-theme=light] {
+  color-scheme: light;
+  --page: #E3E7ED; --field: #F6F8FB; --card: #FFFFFF; --pop: #FFFFFF; --box: #F8F9FB;
+  --line: #E1E5EA; --line2: #CBD2DA;
+  --ink: #1C1F23; --ink2: #4B5462; --ink3: #7C8694; --ink4: #A5ADB8;
+  --fill0: rgba(46,50,56,.05); --fill1: rgba(46,50,56,.09); --fill2: rgba(46,50,56,.13); --hover: rgba(46,50,56,.04);
+  --primary: #0064FA; --primary-light: #EAF5FF; --primary-line: rgba(0,100,250,.5);
+  --success: #3BB346; --success-light: #E2F4E3;
+  --warning: #FC8800; --warning-light: #FFF8EA;
+  --danger: #F93920; --danger-light: #FEF2ED;
+  --anno: #9A6B00; --anno-ink: #FFFFFF; --anno-fill: rgba(154,107,0,.07);
+  --shadow: 0 16px 40px rgba(24,36,60,.17), 0 2px 8px rgba(24,36,60,.08);
+  --scrim: rgba(28,31,35,.45);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; padding: 24px 28px 92px; background: var(--page); color: var(--ink); font: 13px/1.5 var(--font); -webkit-font-smoothing: antialiased; }
+body > :not(.foot):not(.lb) { max-width: 1500px; margin-left: auto; margin-right: auto; }
+:where(.top, .why, .fact, .pm, .legend, .var > p) code { font: 12px var(--mono); background: var(--fill0); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--ink2); }
+:where(.top, .why, .fact, .pm, .legend, .var > p) b { color: var(--ink); font-weight: 600; }
+
+/* ---- the head of the page */
+.top { margin-bottom: 26px; }
+.top > h1 { font-size: 20px; font-weight: 650; letter-spacing: -.01em; line-height: 1.3; margin: 0 0 6px; }
+.top > .sub { color: var(--ink2); font-size: 13.5px; margin: 0; max-width: 1080px; }
+
+/* ---- a question: В1 in an amber badge, its facts, the variants side by side, the comment */
+.q { margin-bottom: 34px; }
+.q + .q { padding-top: 26px; border-top: 1px solid var(--line); }
+.q > h2 { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 650; line-height: 1.35; margin: 0 0 6px; }
+.q > h2 > .n { flex: none; min-width: 30px; height: 26px; padding: 0 9px; border-radius: 13px; background: var(--anno); color: var(--anno-ink); font-size: 12.5px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 5px; transition: background .15s; }
+.q.answered > h2 > .n { background: var(--success); color: #fff; }
+.q.answered > h2 > .n::after { content: ""; width: 9px; height: 9px; background: currentColor; -webkit-mask: var(--tick) center/contain no-repeat; mask: var(--tick) center/contain no-repeat; }
+.q > .why { color: var(--ink2); font-size: 13px; margin: 0 0 14px; max-width: 1120px; }
+.fact { margin: 0 0 14px; max-width: 1120px; border: 1px solid var(--line); border-left: 3px solid var(--primary); border-radius: 6px; padding: 9px 14px; font-size: 12.5px; color: var(--ink2); background: var(--box); }
+.fact.warn { border-left-color: var(--warning); }
+
+/* the variants: three across (two when there are two or four), fewer on a narrow window — round-kit.js counts */
+.vars { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.vars.text { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)) !important; gap: 10px; }
+.var { position: relative; display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--box); overflow: hidden; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.var:hover { border-color: var(--line2); }
+.var:focus-visible { outline: 2px solid var(--primary-line); outline-offset: 2px; }
+.var[data-rec] { border-color: var(--primary-line); }
+.var[data-now] { border-style: dashed; }
+.var.picked { border-color: var(--success); border-style: solid; box-shadow: 0 0 0 2px var(--success-light); }
+.var.wide { grid-column: 1 / -1; }
+.var > h3 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin: 0; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 13.5px; font-weight: 650; line-height: 1.35; }
+.var > h3 small { font-size: 12.5px; font-weight: 400; color: var(--ink2); }
+.var > h3 > .lt { flex: none; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 6px; background: var(--fill1); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; transition: background .15s, color .15s; }
+.var.picked > h3 > .lt { background: var(--success); color: #fff; }
+.var > h3 > .pill { margin-left: auto; font-size: 11px; font-weight: 650; border-radius: 10px; padding: 2px 8px; white-space: nowrap; }
+.var > h3 > .pill + .pill { margin-left: 0; }
+.var > h3 > .rec { color: var(--primary); background: var(--primary-light); }
+.var > h3 > .now { color: var(--ink3); border: 1px solid var(--line2); padding: 1px 8px; }
+.var > p { margin: 0; padding: 10px 14px 0; color: var(--ink2); font-size: 12.5px; }
+.var > .vb { flex: 1; }
+.var > .pm { padding: 10px 14px; font-size: 12.5px; color: var(--ink2); border-top: 1px solid var(--line); }
+.pm > div { display: flex; gap: 7px; margin: 2px 0; }
+.pm > .p::before { content: "+"; color: var(--success); font-weight: 700; width: 10px; flex: none; }
+.pm > .m::before { content: "−"; color: var(--danger); font-weight: 700; width: 10px; flex: none; }
+.pm > .r { color: var(--primary); font-weight: 600; }
+.var > .legend { margin: 0; padding: 10px 14px; border-top: 1px solid var(--line); grid-template-columns: 1fr; gap: 5px; }
+.var > .pk { margin-top: auto; padding: 0 14px 12px; }
+.var > .pm + .pk, .var > .legend + .pk { padding-top: 0; }
+.var > .vb + .pk, .var > p + .pk, .var > h3 + .pk { padding-top: 12px; }
+.pk > button { height: 28px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 6px; background: var(--card); color: var(--ink); font: inherit; font-size: 12.5px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.pk > button:hover { border-color: var(--ink4); }
+.var.picked > .pk > button { background: var(--success); border-color: var(--success); color: #fff; }
+.var.picked > .pk > button::before { content: ""; width: 10px; height: 10px; background: currentColor; -webkit-mask: var(--tick) center/contain no-repeat; mask: var(--tick) center/contain no-repeat; }
+
+/* a variant with nothing drawn («ОК, комітимо», «Є правки»): one compact row with a radio */
+.var.text > h3 { border-bottom: 0; padding: 11px 14px; }
+.var.text > h3::after { content: ""; margin-left: auto; flex: none; width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--line2); transition: background .15s, border-color .15s; }
+.var.text > h3:has(.pill)::after { margin-left: 4px; }
+.var.text.picked > h3::after { border-color: var(--success); background: var(--success) var(--tick-white) center/10px no-repeat; }
+.q[data-multi] .var.text > h3::after { border-radius: 5px; }
+.var.text > p { padding: 0 14px 11px; margin-top: -4px; }
+.var.text > .pk { display: none; }
+
+/* the comment under a question */
+.q > .qc { margin-top: 12px; }
+.q > .qc > textarea { display: block; width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid var(--line2); border-radius: 8px; background: var(--box); color: var(--ink); font: 13px/1.5 var(--font); resize: none; overflow: hidden; transition: border-color .15s, box-shadow .15s; }
+.q > .qc > textarea::placeholder { color: var(--ink4); }
+.q > .qc > textarea:focus { outline: none; border-color: var(--primary-line); box-shadow: 0 0 0 3px var(--primary-light); }
+
+/* ---- visuals: a variant's drawing (.vb), a screenshot (.shot), a question's own picture (.fig) */
+.vb, .shot, .fig { position: relative; }
+.vb { padding: 14px; background: var(--page); }
+.fig { margin: 0 0 14px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--page); }
+.shot { display: inline-block; max-width: 100%; vertical-align: top; line-height: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.shot > img { display: block; max-width: 100%; height: auto; }
+.vb > .shot:only-child, .fig > .shot:only-child { display: block; width: fit-content; margin: 0 auto; }
+.vb.bleed, .fig.bleed { padding: 0; }
+.vb.center, .fig.center { display: grid; place-items: center; }
+/* Dark and Light renders of one screen: the page shows the one that matches its theme */
+html:not([data-theme=light]) .only-light, html[data-theme=light] .only-dark { display: none !important; }
+/* a picture beside its legend */
+.with-legend { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 300px); gap: 18px; align-items: start; margin-bottom: 14px; }
+.with-legend > * { min-width: 0; }
+.with-legend > .fig { margin: 0; }
+.with-legend > .legend { margin: 0; grid-template-columns: 1fr; }
+@media (max-width: 860px) { .with-legend { grid-template-columns: minmax(0, 1fr); } }
+/* [data-w]: drawn that wide, scaled down to fit — never up */
+.vb[data-w], .fig[data-w] { display: block; }
+.zs { position: relative; overflow: hidden; width: 100%; }
+.zi { transform-origin: 0 0; }
+/* a visual opens large on a click (its corner button in a [data-live] one, whose drawing takes clicks itself) */
+.var :is(.vb, .fig, .shot):not([data-live]), .q > .fig:not([data-live]), .q > .with-legend > .fig:not([data-live]) { cursor: zoom-in; }
+.zb { position: absolute; right: 8px; top: 8px; z-index: 6; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 1px solid var(--line2); border-radius: 7px; background: var(--card); color: var(--ink2); cursor: zoom-in; opacity: 0; transition: opacity .15s; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.zb svg { width: 15px; height: 15px; }
+:is(.vb, .shot, .fig):hover > .zb, .zb:focus-visible { opacity: 1; }
+.zb:hover { color: var(--ink); border-color: var(--ink4); }
+
+/* ---- annotations — visibly not UI: amber, outlined, above the drawing */
+/* a numbered marker; in text and legends it sits in the line, in a visual it is centred on its point */
+.mkn { display: inline-flex; align-items: center; justify-content: center; flex: none; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--mk); color: var(--mk-ink); font: 700 11px/1 var(--font); font-style: normal; font-variant-numeric: tabular-nums; vertical-align: -4px; box-shadow: inset 0 0 0 1px rgba(16,11,0,.22); }
+:is(.vb, .shot, .fig, .al) > .mkn { position: absolute; z-index: 5; transform: translate(-50%, -50%) scale(var(--ik, 1)); min-width: 22px; height: 22px; border-radius: 11px; font-size: 12px; box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--mk-edge), 0 2px 8px rgba(0,0,0,.45); cursor: pointer; pointer-events: auto; line-height: 1; }
+:is(.vb, .shot, .fig, .al) > .mkn:hover { filter: brightness(1.08); }
+/* a frame round the part that matters; [data-dim] veils the rest; [data-label] tags it */
+.frame { position: absolute; z-index: 4; display: block; border: calc(2px * var(--ik, 1)) solid var(--mk); border-radius: calc(6px * var(--ik, 1)); box-shadow: 0 0 0 calc(1px * var(--ik, 1)) var(--mk-edge), inset 0 0 0 calc(1px * var(--ik, 1)) var(--mk-edge); pointer-events: none; }
+.frame[data-dim] { box-shadow: 0 0 0 calc(1px * var(--ik, 1)) var(--mk-edge), inset 0 0 0 calc(1px * var(--ik, 1)) var(--mk-edge), 0 0 0 300vmax var(--veil); }
+.frame.dash { border-style: dashed; }
+.frame[data-label]::before { content: attr(data-label); position: absolute; left: calc(-2px * var(--ik, 1)); bottom: 100%; margin-bottom: calc(5px * var(--ik, 1)); transform: scale(var(--ik, 1)); transform-origin: 0 100%; padding: 3px 7px; border-radius: 5px; background: var(--mk); color: var(--mk-ink); font: 650 11px/1.25 var(--font); white-space: nowrap; box-shadow: 0 0 0 1px var(--mk-edge), 0 2px 6px rgba(0,0,0,.35); }
+.frame.below[data-label]::before { bottom: auto; top: 100%; margin: calc(5px * var(--ik, 1)) 0 0; transform-origin: 0 0; }
+.frame.inside[data-label]::before { bottom: auto; top: 0; margin: 0; border-radius: 0 0 5px 0; left: 0; transform-origin: 0 0; }
+.frame.right[data-label]::before { left: auto; right: calc(-2px * var(--ik, 1)); transform-origin: 100% 100%; }
+/* the layer round-kit.js draws [data-mark] and [data-frame] on */
+.al { position: absolute; inset: 0; z-index: 5; overflow: hidden; pointer-events: none; border-radius: inherit; }
+/* a note on a drawing: a dashed amber tag */
+.anno { display: inline-flex; align-items: center; gap: 4px; font: 600 11px/1.3 var(--font); color: var(--anno); border: 1px dashed var(--anno); border-radius: 4px; padding: 1px 6px; background: var(--anno-fill); white-space: nowrap; }
+
+/* the legend: what each number means */
+ol.legend { margin: 12px 0 14px; padding: 0; list-style: none; counter-reset: lg; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px 22px; max-width: 1500px; }
+ol.legend > li { position: relative; min-height: 20px; padding: 1px 0 0 30px; font-size: 12.5px; line-height: 1.5; color: var(--ink2); counter-increment: lg; }
+ol.legend > li::before { content: counter(lg); position: absolute; left: 0; top: 0; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--mk); color: var(--mk-ink); font: 700 11px/20px var(--font); text-align: center; box-shadow: inset 0 0 0 1px rgba(16,11,0,.22); }
+ol.legend > li[data-n]::before { content: attr(data-n); }
+
+/* ---- drawing helpers: a window to put a screen in, and skeleton lines for whatever is not the point */
+.win { position: relative; border: 1px solid var(--line2); border-radius: 8px; background: var(--card); overflow: hidden; box-shadow: var(--shadow); }
+.win::before { content: attr(data-title); display: block; height: 30px; padding: 0 70px 0 12px; font: 600 11.5px/30px var(--font); color: var(--ink3); background: var(--field); border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.win::after { content: ""; position: absolute; right: 10px; top: 11px; width: 46px; height: 8px; background: radial-gradient(circle, var(--ink4) 3px, transparent 3.6px) 0 0 / 16px 8px repeat-x; }
+.sk { display: block; flex: none; width: var(--w, 100%); height: var(--h, 8px); border-radius: 99px; background: var(--fill1); }
+.sk.box { height: var(--h, 40px); border-radius: 6px; background: var(--fill0); border: 1px solid var(--line); }
+.sk.dot { width: var(--h, 22px); height: var(--h, 22px); border-radius: 50%; }
+.sk-col { display: grid; gap: var(--gap, 8px); }
+.sk-row { display: flex; align-items: center; gap: var(--gap, 8px); }
+
+/* ---- the bar at the foot: the theme, what is left, Send */
+.foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 50; display: flex; align-items: center; gap: 14px; padding: 10px 28px; background: var(--card); border-top: 1px solid var(--line2); box-shadow: 0 -10px 30px rgba(0,0,0,.18); }
+.foot .msg { flex: 1; min-width: 0; color: var(--ink2); font-size: 13px; }
+.foot .msg.err { color: var(--danger); }
+.foot .msg.ok { color: var(--success); }
+.foot .kbd { color: var(--ink4); font-size: 12px; white-space: nowrap; }
+.foot .send { height: 34px; padding: 0 20px; border: 1px solid var(--primary); border-radius: 7px; background: var(--primary); color: #fff; font: 600 13.5px var(--font); cursor: pointer; }
+.foot .send:disabled { opacity: .6; cursor: default; }
+.seg { display: inline-flex; flex: none; height: 30px; border: 1px solid var(--line2); border-radius: 6px; overflow: hidden; background: var(--box); }
+.seg button { border: 0; background: transparent; padding: 0 12px; cursor: pointer; font: 12.5px var(--font); color: var(--ink2); }
+.seg button + button { border-left: 1px solid var(--line2); }
+.seg button.on { background: var(--primary); color: #fff; }
+@media (max-width: 640px) { .foot .kbd { display: none; } body { padding-left: 16px; padding-right: 16px; } .foot { padding: 10px 16px; } }
+
+/* ---- a visual opened large: ‹ › walk the question's variants, Esc closes */
+.lb { position: fixed; inset: 0; z-index: 100; display: flex; flex-direction: column; background: var(--scrim); backdrop-filter: blur(3px); }
+.lb-bar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; background: var(--card); border-bottom: 1px solid var(--line2); box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.lb-bar .t { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-bar .t .lt { flex: none; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 6px; background: var(--fill1); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+.lb-bar .t.picked .lt { background: var(--success); color: #fff; }
+.lb-bar .hint { color: var(--ink4); font-size: 12px; white-space: nowrap; }
+.lb-bar button { height: 30px; min-width: 30px; padding: 0 12px; border: 1px solid var(--line2); border-radius: 6px; background: var(--box); color: var(--ink); font: 12.5px var(--font); cursor: pointer; }
+.lb-bar button:hover { border-color: var(--ink4); }
+.lb-bar button:disabled { opacity: .4; cursor: default; }
+.lb-bar .lb-pick.on { background: var(--success); border-color: var(--success); color: #fff; }
+.lb-body { flex: 1; min-height: 0; display: grid; place-items: center; overflow: auto; padding: 24px; }
+.lb-fit { position: relative; flex: none; border-radius: 10px; box-shadow: var(--shadow); }
+.lb-fit > * { position: absolute !important; left: 0; top: 0; margin: 0 !important; max-width: none !important; transform-origin: 0 0; cursor: default !important; }
+.lb-fit > .vb { border-radius: 10px; }
+
+/* the two ticks the kit draws */
+html { --tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.2 6.3l2.5 2.5 5.1-5.4' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+       --tick-white: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.2 6.3l2.5 2.5 5.1-5.4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

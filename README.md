@@ -49,9 +49,12 @@ only a 401/403 that a fresh token does not cure means the sign-in is gone.
 
 ## Questions
 
-A session asks through the widget with the `widget-round` skill (`skill/widget-round`, installed in
-`~/.claude/skills`): it writes one self-contained HTML page into its round folder
-(`claude-widget-hook.exe where`) and runs `claude-widget-hook.exe wait <name>` in the background. The
+A session asks through the widget with the `widget-round` skill (`skill/widget-round`, copied to
+`~/.claude/skills/widget-round`): it writes one HTML page into its round folder
+(`claude-widget-hook.exe where`) next to the skill's kit — `round-kit.css` and `round-kit.js`: the look
+in Dark and Light, picking, zoom, numbered markers and frames drawn on the element or the screenshot
+pixel they point at, and the send — starting from `template-choice.html` or `template-review.html`, and
+runs `claude-widget-hook.exe wait <name>` in the background. The
 widget shows the session as asking and chirps; «Відповісти» opens the page in a window centred on the
 widget's monitor (served through the `round` scheme, `src-tauri/src/rounds.rs`); the page's
 «Надіслати» POSTs `/answer`, the answer lands in `<name>.answer.md` and the waiter hands it back.
