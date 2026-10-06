@@ -60,22 +60,33 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+/// ~\.claude-widget on Windows: not under AppData, which Claude Desktop's package redirects (msix.rs).
 pub fn data_dir() -> Option<PathBuf> {
     #[cfg(windows)]
-    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    return std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".claude-widget"));
     #[cfg(not(windows))]
-    let base = std::env::var_os("HOME")
-        .map(|h| PathBuf::from(h).join("Library").join("Application Support"));
-    base.map(|b| b.join("ClaudeWidget"))
+    return std::env::var_os("HOME").map(|h| {
+        PathBuf::from(h)
+            .join("Library")
+            .join("Application Support")
+            .join("ClaudeWidget")
+    });
 }
 
+/// Claude Desktop installed as an MSIX package keeps its records in the package's copy of AppData.
 fn desktop_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     let base = std::env::var_os("APPDATA").map(PathBuf::from);
     #[cfg(not(windows))]
     let base = std::env::var_os("HOME")
         .map(|h| PathBuf::from(h).join("Library").join("Application Support"));
-    base.map(|b| b.join("Claude").join("claude-code-sessions"))
+    let plain = base.map(|b| b.join("Claude").join("claude-code-sessions"));
+    let packaged = crate::msix::claude_packages().into_iter().map(|p| {
+        p.join("Roaming")
+            .join("Claude")
+            .join("claude-code-sessions")
+    });
+    packaged.chain(plain.clone()).find(|p| p.is_dir()).or(plain)
 }
 
 fn str_of(v: &Value, k: &str) -> String {

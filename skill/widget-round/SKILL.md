@@ -16,7 +16,7 @@ answer reaches you through a background waiter — no polling, no copy-paste.
 
    ```bash
    k="$USERPROFILE/.claude/skills/widget-round"   # this skill's folder
-   d=$("$LOCALAPPDATA/ClaudeWidget/bin/claude-widget-hook.exe" where) && cp "$k/round-kit.css" "$k/round-kit.js" "$d/" && echo "$d"
+   d=$("$USERPROFILE/.claude-widget/bin/claude-widget-hook.exe" where) && cp "$k/round-kit.css" "$k/round-kit.js" "$d/" && echo "$d"
    ```
 
 2. **Write the page** as `<folder>/<name>.html` — `<name>` is letters, digits, `-` and `_`. Start from a
@@ -47,7 +47,7 @@ answer reaches you through a background waiter — no polling, no copy-paste.
 3. **Wait in the background** (Bash with `run_in_background: true`):
 
    ```bash
-   "$LOCALAPPDATA/ClaudeWidget/bin/claude-widget-hook.exe" wait <name>
+   "$USERPROFILE/.claude-widget/bin/claude-widget-hook.exe" wait <name>
    ```
 
    Then tell the user in one line that the question is waiting in the widget, and end the turn (or go
@@ -62,7 +62,7 @@ answer reaches you through a background waiter — no polling, no copy-paste.
    stops asking — it hides the question and closes its window, and the waiter exits by itself:
 
    ```bash
-   "$LOCALAPPDATA/ClaudeWidget/bin/claude-widget-hook.exe" drop <name>
+   "$USERPROFILE/.claude-widget/bin/claude-widget-hook.exe" drop <name>
    ```
 
    Withdraw a round the same way when it no longer matters — the question changed, or you are asking

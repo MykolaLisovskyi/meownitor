@@ -7,13 +7,19 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+/// The widget's data folder (sessions.rs `data_dir`): ~\.claude-widget on Windows, where Claude
+/// Desktop's package doesn't redirect our writes as it does under AppData.
 fn state_dir() -> Option<PathBuf> {
     #[cfg(windows)]
-    let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+    let base = std::env::var_os("USERPROFILE").map(|h| PathBuf::from(h).join(".claude-widget"));
     #[cfg(not(windows))]
-    let base = std::env::var_os("HOME")
-        .map(|h| PathBuf::from(h).join("Library").join("Application Support"));
-    base.map(|b| b.join("ClaudeWidget").join("sessions"))
+    let base = std::env::var_os("HOME").map(|h| {
+        PathBuf::from(h)
+            .join("Library")
+            .join("Application Support")
+            .join("ClaudeWidget")
+    });
+    base.map(|b| b.join("sessions"))
 }
 
 fn now_ms() -> u64 {
@@ -71,7 +77,7 @@ fn describe(tool: &str, input: &Value) -> (String, String) {
     (name, detail)
 }
 
-/// One line per event in ClaudeWidget/events.log, so what Claude actually sends can be checked;
+/// One line per event in events.log in the data folder, so what Claude actually sends can be checked;
 /// the log starts over once it passes 512 KB.
 fn log_event(dir: &std::path::Path, now: u64, sid: &str, event: &str, tool: &str) {
     use std::io::Write;

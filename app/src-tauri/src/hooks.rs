@@ -35,7 +35,7 @@ fn settings_path() -> Option<PathBuf> {
     home.map(|h| PathBuf::from(h).join(".claude").join("settings.json"))
 }
 
-fn exe_name() -> &'static str {
+pub fn exe_name() -> &'static str {
     if cfg!(windows) {
         "claude-widget-hook.exe"
     } else {
@@ -69,6 +69,37 @@ fn is_ours(entry: &Value) -> bool {
                     .map_or(false, |c| c.contains(MARK))
             })
         })
+}
+
+/// The command our entries should run: the hook's copy in the data folder.
+fn command() -> Option<String> {
+    installed_hook().map(|t| format!("\"{}\"", t.to_string_lossy().replace('\\', "/")))
+}
+
+/// Our hook commands in settings.json.
+fn our_commands(s: &Value) -> Vec<String> {
+    let entries = s
+        .get("hooks")
+        .and_then(|h| h.as_object())
+        .into_iter()
+        .flat_map(|o| o.values())
+        .filter_map(|a| a.as_array())
+        .flatten();
+    entries
+        .filter_map(|e| e.get("hooks")?.as_array())
+        .flatten()
+        .filter_map(|h| h.get("command")?.as_str())
+        .filter(|c| c.contains(MARK))
+        .map(String::from)
+        .collect()
+}
+
+/// Installed, but some entry runs the hook from another place (the data folder moved, msix.rs).
+pub fn elsewhere() -> bool {
+    let (Ok(s), Some(cmd)) = (read_settings(), command()) else {
+        return false;
+    };
+    our_commands(&s).iter().any(|c| *c != cmd)
 }
 
 fn count_ours(s: &Value) -> usize {
@@ -110,7 +141,8 @@ fn write_with_backup(s: &Value) -> Result<(), String> {
     std::fs::rename(&tmp, &p).map_err(|e| e.to_string())
 }
 
-/// Copies the hook next to the widget into the data folder and adds it to every event it needs.
+/// Copies the hook next to the widget into the data folder and adds it to every event it needs;
+/// entries already there are pointed at that copy.
 pub fn install() -> Result<Status, String> {
     let target = installed_hook().ok_or("no data folder")?;
     let source = std::env::current_exe()
@@ -126,7 +158,7 @@ pub fn install() -> Result<Status, String> {
         return Err(format!("{} not found next to the widget", exe_name()));
     }
     let mut s = read_settings()?;
-    let command = format!("\"{}\"", target.to_string_lossy().replace('\\', "/"));
+    let command = command().ok_or("no data folder")?;
     let hooks = s
         .as_object_mut()
         .ok_or("settings.json is not an object")?
@@ -138,7 +170,22 @@ pub fn install() -> Result<Status, String> {
         let Some(arr) = arr.as_array_mut() else {
             continue;
         };
-        if !arr.iter().any(is_ours) {
+        let mut had = false;
+        for h in arr
+            .iter_mut()
+            .filter(|e| is_ours(e))
+            .filter_map(|e| e.get_mut("hooks")?.as_array_mut())
+            .flatten()
+        {
+            if h.get("command")
+                .and_then(|c| c.as_str())
+                .is_some_and(|c| c.contains(MARK))
+            {
+                h["command"] = json!(command);
+                had = true;
+            }
+        }
+        if !had {
             arr.push(json!({ "matcher": "", "hooks": [{ "type": "command", "command": command, "timeout": 5 }] }));
         }
     }
@@ -175,16 +222,11 @@ mod tests {
         let home = std::env::temp_dir().join(format!("cw-hooks-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&home);
         std::fs::create_dir_all(home.join(".claude")).unwrap();
-        let local = home.join("local");
-        std::fs::create_dir_all(local.join("ClaudeWidget").join("bin")).unwrap();
-        std::fs::write(
-            local.join("ClaudeWidget").join("bin").join(exe_name()),
-            b"x",
-        )
-        .unwrap();
         std::env::set_var("USERPROFILE", &home);
         std::env::set_var("HOME", &home);
-        std::env::set_var("LOCALAPPDATA", &local);
+        let hook = installed_hook().unwrap();
+        std::fs::create_dir_all(hook.parent().unwrap()).unwrap();
+        std::fs::write(&hook, b"x").unwrap();
         let original = r#"{
   "zeta": 1,
   "hooks": {
@@ -208,6 +250,30 @@ mod tests {
             .contains("other.js"));
         assert_eq!(count_ours(&v), EVENTS.len());
         assert!(status().installed);
+        assert!(!elsewhere());
+
+        // Entries left pointing at an old copy are re-pointed, not doubled.
+        let path = installed_hook()
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/");
+        std::fs::write(
+            &settings,
+            std::fs::read_to_string(&settings)
+                .unwrap()
+                .replace(&path, "C:/old/ClaudeWidget/bin/claude-widget-hook.exe"),
+        )
+        .unwrap();
+        assert!(elsewhere());
+        install().unwrap();
+        assert!(!elsewhere());
+        let v: Value = serde_json::from_str(&std::fs::read_to_string(&settings).unwrap()).unwrap();
+        assert_eq!(count_ours(&v), EVENTS.len());
+        assert_eq!(
+            v["hooks"]["Stop"].as_array().unwrap().len(),
+            2,
+            "re-pointed, not added again"
+        );
 
         uninstall().unwrap();
         let v: Value = serde_json::from_str(&std::fs::read_to_string(&settings).unwrap()).unwrap();

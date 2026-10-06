@@ -24,7 +24,7 @@ The tray icon has the mood and character switches (for trying them out) and Quit
 ## Sessions
 
 `claude-widget-hook.exe` (`src-tauri/src/bin/hook.rs`) is a Claude Code hook: for every session
-event it writes what the session is doing into `%LOCALAPPDATA%\ClaudeWidget\sessions\<id>.json`
+event it writes what the session is doing into `~\.claude-widget\sessions\<id>.json`
 and exits in milliseconds; it never blocks or fails Claude. The widget (`src-tauri/src/sessions.rs`)
 merges those files with Claude Desktop's own session records (`%APPDATA%\Claude\claude-code-sessions`:
 title, archived, the local id behind the `claude://claude.ai/epitaxy/<id>` link) and shows every
@@ -32,11 +32,11 @@ session active in the last 24 hours, grouped: waiting for you, working, your tur
 
 Installing the hook by hand (until the settings window does it):
 
-1. copy `target\debug\claude-widget-hook.exe` to `%LOCALAPPDATA%\ClaudeWidget\bin\`;
+1. copy `target\debug\claude-widget-hook.exe` to `~\.claude-widget\bin\`;
 2. in `~/.claude/settings.json`, for SessionStart, SessionEnd, UserPromptSubmit, PreToolUse,
    PostToolUse, PostToolUseFailure, Notification, PermissionRequest, Stop, SubagentStart and
    SubagentStop add `{"matcher": "", "hooks": [{"type": "command", "command":
-   "\"C:/Users/<you>/AppData/Local/ClaudeWidget/bin/claude-widget-hook.exe\"", "timeout": 5}]}`.
+   "\"C:/Users/<you>/.claude-widget/bin/claude-widget-hook.exe\"", "timeout": 5}]}`.
 
 ## Limits
 
@@ -72,7 +72,8 @@ start with Windows (`tauri-plugin-autostart`), and the Claude Code hook — inst
 confirmation; `src-tauri/src/hooks.rs` touches only its own entries, keeps the file's key order and
 backs the file up before every write (`cargo test --bin claude-widget hooks`). The character, the
 sound, the idle group and where the widget was left (mode, edge, position) live in
-`%LOCALAPPDATA%\ClaudeWidget\config.json`.
+`~\.claude-widget\config.json` — not under AppData, which Claude Desktop's MSIX package redirects
+for everything it starts.
 
 The everyday copy runs from `%LOCALAPPDATA%\ClaudeWidget\app\` (`claude-widget.exe` and
 `claude-widget-hook.exe` from `target\release`), so start-with-Windows points at a place a rebuild

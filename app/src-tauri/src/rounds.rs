@@ -276,6 +276,9 @@ pub fn handle<R: Runtime>(
             if std::fs::write(&answer, text).is_err() {
                 return reply(500, "application/json", br#"{"ok":false}"#.to_vec());
             }
+            for old in crate::msix::legacy_answers(sid, name) {
+                let _ = std::fs::write(old, text);
+            }
             // Leave the page a moment to say "sent", then close it.
             std::thread::spawn(move || {
                 std::thread::sleep(Duration::from_millis(1400));

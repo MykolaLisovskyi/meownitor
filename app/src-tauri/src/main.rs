@@ -6,6 +6,7 @@
 mod config;
 mod hooks;
 mod limits;
+mod msix;
 mod rounds;
 mod sessions;
 mod watchdog;
@@ -214,6 +215,10 @@ fn drag_end(window: WebviewWindow, drag: State<DragOffset>) -> Poll {
 }
 
 fn main() {
+    if msix::relaunch_outside() {
+        return;
+    }
+    msix::migrate();
     tauri::Builder::default()
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
