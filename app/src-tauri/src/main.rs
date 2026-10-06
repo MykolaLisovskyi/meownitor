@@ -8,6 +8,7 @@ mod hooks;
 mod limits;
 mod rounds;
 mod sessions;
+mod watchdog;
 
 use serde::Serialize;
 use std::sync::Mutex;
@@ -84,7 +85,8 @@ fn snapshot(w: &WebviewWindow) -> Poll {
 }
 
 #[tauri::command]
-fn poll(window: WebviewWindow) -> Poll {
+fn poll(window: WebviewWindow, beat: State<watchdog::Beat>) -> Poll {
+    watchdog::polled(&window, &beat);
     snapshot(&window)
 }
 
@@ -178,8 +180,14 @@ fn show(window: WebviewWindow) {
 }
 
 #[tauri::command]
-fn ignore(window: WebviewWindow, on: bool) {
+fn ignore(window: WebviewWindow, beat: State<watchdog::Beat>, on: bool) {
+    watchdog::ignoring(&beat, on);
     let _ = window.set_ignore_cursor_events(on);
+}
+
+#[tauri::command]
+fn page_hidden(beat: State<watchdog::Beat>, hidden: bool) {
+    watchdog::hidden(&beat, hidden);
 }
 
 #[tauri::command]
@@ -213,6 +221,7 @@ fn main() {
         ))
         .register_uri_scheme_protocol("round", rounds::handle)
         .manage(DragOffset::default())
+        .manage(watchdog::Beat::default())
         .manage(sessions::Latest(Mutex::new(Vec::new())))
         .manage(limits::Latest(Mutex::new(limits::Limits::default())))
         .invoke_handler(tauri::generate_handler![
@@ -232,6 +241,7 @@ fn main() {
             hook_uninstall,
             show,
             ignore,
+            page_hidden,
             drag_start,
             drag_move,
             drag_end
@@ -274,6 +284,7 @@ fn main() {
                 .on_menu_event(|app, event| {
                     let id = event.id.as_ref();
                     if id == "quit" {
+                        watchdog::log("quit from the tray");
                         app.exit(0);
                     } else {
                         let _ = app.emit("tray", id.to_string());
@@ -282,8 +293,15 @@ fn main() {
                 .build(app)?;
             sessions::spawn(app.handle().clone());
             limits::spawn(app.handle().clone());
+            watchdog::spawn(app.handle().clone());
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running the widget");
+        .build(tauri::generate_context!())
+        .expect("error while running the widget")
+        .run(|_, event| {
+            // With "quit from the tray" or the watchdog's lines before it, or neither (a closed window).
+            if let tauri::RunEvent::Exit = event {
+                watchdog::log("exit");
+            }
+        });
 }

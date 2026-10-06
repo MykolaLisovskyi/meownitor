@@ -78,6 +78,12 @@ The everyday copy runs from `%LOCALAPPDATA%\ClaudeWidget\app\` (`claude-widget.e
 `claude-widget-hook.exe` from `target\release`), so start-with-Windows points at a place a rebuild
 does not touch.
 
+## Watchdog
+
+When the page stops polling, `src-tauri/src/watchdog.rs` steps in: after 4 s the window takes the
+mouse back, after 8 s the WebView2 processes are resumed, after 30 s they are restarted (not while a
+round window is open). `widget.log` in the data folder says when.
+
 ## Status
 
 Steps 1–5 of the plan: the cat on the desktop, the real sessions, the plan limits, questions

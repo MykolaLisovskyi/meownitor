@@ -177,6 +177,9 @@
     }finally{busy=false;}
   }
   setInterval(poll,70);
+  // A hidden page's timers are throttled; the host's watchdog (watchdog.rs) mustn't take that for a hang.
+  function visibility(){invoke('page_hidden',{hidden:document.hidden});}
+  document.addEventListener('visibilitychange',visibility);visibility();
 
   // Dragging: by the cat, the card header or the strip. Rust keeps the grab offset and moves the
   // window to the cursor; on release we snap to an edge within SNAP px.
