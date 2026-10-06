@@ -3,7 +3,8 @@
 // rounds/<session id>/<name>.answer.md (`claude-widget-hook wait <name>`). The widget lists pending
 // rounds, opens one in a window centred on the widget's monitor and serves it through the `round`
 // scheme, which also takes the page's POST /answer — the same contract as the design pages — and
-// POST /size, the page's own height, so the window fits its content.
+// POST /size, the page's own height, so the window fits its content. A round the session withdraws
+// (`claude-widget-hook drop <name>` leaves <name>.dropped) leaves the list and closes its window.
 use std::path::PathBuf;
 use std::time::Duration;
 use tauri::http::{Request, Response};
@@ -38,11 +39,14 @@ fn title_of(html: &str) -> Option<String> {
     (!t.is_empty()).then(|| t.to_string())
 }
 
-/// Rounds that have no answer yet.
+/// Rounds that have no answer yet and that their session hasn't withdrawn (`claude-widget-hook drop`).
 pub fn pending() -> Vec<Pending> {
+    dir().map(|root| pending_in(&root)).unwrap_or_default()
+}
+
+fn pending_in(root: &std::path::Path) -> Vec<Pending> {
     let mut out = Vec::new();
-    let Some(root) = dir() else { return out };
-    let Ok(sessions) = std::fs::read_dir(&root) else {
+    let Ok(sessions) = std::fs::read_dir(root) else {
         return out;
     };
     for s in sessions.flatten() {
@@ -63,7 +67,11 @@ pub fn pending() -> Vec<Pending> {
                 .unwrap_or_default()
                 .to_string_lossy()
                 .to_string();
-            if !safe(&name) || p.with_file_name(format!("{name}.answer.md")).exists() {
+            if !safe(&name)
+                || ["answer.md", "dropped"]
+                    .iter()
+                    .any(|x| p.with_file_name(format!("{name}.{x}")).exists())
+            {
                 continue;
             }
             let html = std::fs::read_to_string(&p).unwrap_or_default();
@@ -153,6 +161,19 @@ pub fn open<R: Runtime>(
             let _ = w2.set_always_on_top(false);
         });
         follow_layout(app, &w, label);
+        // A round its session withdrew while the window is open closes with it.
+        if let Some(dropped) = dir().map(|d| d.join(sid).join(format!("{name}.dropped"))) {
+            let (app, label) = (app.clone(), label.to_string());
+            std::thread::spawn(move || {
+                while let Some(w) = app.get_webview_window(&label) {
+                    if dropped.exists() {
+                        let _ = w.close();
+                        return;
+                    }
+                    std::thread::sleep(Duration::from_millis(500));
+                }
+            });
+        }
     }
     Ok(())
 }
@@ -310,5 +331,33 @@ pub fn handle<R: Runtime>(
     match std::fs::read(root.join(sid).join(file)) {
         Ok(bytes) => reply(200, mime, bytes),
         Err(_) => reply(404, "text/plain", b"not found".to_vec()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn answered_and_withdrawn_rounds_are_not_pending() {
+        let root = std::env::temp_dir().join(format!("cw-pending-{}", std::process::id()));
+        let dir = root.join("s1");
+        std::fs::create_dir_all(&dir).unwrap();
+        for n in ["open", "answered", "dropped"] {
+            std::fs::write(
+                dir.join(format!("{n}.html")),
+                format!("<title>T {n}</title>"),
+            )
+            .unwrap();
+        }
+        std::fs::write(dir.join("answered.answer.md"), "1 — A").unwrap();
+        std::fs::write(dir.join("dropped.dropped"), "").unwrap();
+        let list = pending_in(&root);
+        let _ = std::fs::remove_dir_all(&root);
+        assert_eq!(
+            list.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
+            ["open"]
+        );
+        assert_eq!(list[0].title, "T open");
     }
 }

@@ -54,6 +54,20 @@ answer reaches you through a background waiter — no polling, no copy-paste.
    on with other work). When they send, the waiter prints `ANSWER to <name>:` followed by their answer
    and exits — that notification *is* the user's reply.
 
+   The user answers when they get to it: don't put a `timeout` on the waiter, and don't restart it.
+   It gives up by itself after a day. An answer sent after it stopped — gave up, was stopped, or went
+   with a restart of the session — comes with the user's next message, in the same shape.
+
+   If the user answers in the chat instead, take it from there and withdraw the round, so the widget
+   stops asking — it hides the question and closes its window, and the waiter exits by itself:
+
+   ```bash
+   "$LOCALAPPDATA/ClaudeWidget/bin/claude-widget-hook.exe" drop <name>
+   ```
+
+   Withdraw a round the same way when it no longer matters — the question changed, or you are asking
+   it again in a new page.
+
 4. **Read the answer**: one line per question — `1 — A`, `2 — A, C` with several picks, `без вибору` —
    and `  коментар: …` under it when they wrote one. «A②» in a comment points at number 2 in option
    A's picture (a click on a number puts it there). Act on it; if you ask again, ask only what is still

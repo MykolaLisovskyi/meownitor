@@ -1,9 +1,10 @@
 // Claude Code hook relay: records what a session is doing into a small per-session JSON file that
 // the widget reads (sessions/<session_id>.json under the widget's data folder). It must never slow
-// Claude down or fail it — on any problem it just exits 0 without output.
+// Claude down or fail it — on any problem it just exits 0 without output. Its only output is a
+// question round's answer that no waiter took, passed on with the user's next message.
 use serde_json::{json, Value};
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn state_dir() -> Option<PathBuf> {
@@ -91,14 +92,70 @@ fn log_event(dir: &std::path::Path, now: u64, sid: &str, event: &str, tool: &str
     }
 }
 
-/// `where` and `wait`: the two calls a Claude session makes to ask through the widget.
+/// An answer reaches the session once: whoever makes <name>.taken first hands it over — the waiter,
+/// or the hook with the user's next message when no waiter was left to see it.
+fn take(dir: &Path, name: &str) -> bool {
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .open(dir.join(format!("{name}.taken")))
+        .is_ok()
+}
+
+/// Answers sent after the session stopped waiting — the waiter gave up, was stopped or went with a
+/// restart — in the waiter's words, to go to the session with the user's next message. Only answers
+/// newer than rounds/.since: before it the waiters took every answer and marked none.
+fn late_answers(rounds: &Path, sid: &str) -> String {
+    let stamp = rounds.join(".since");
+    if !stamp.exists() {
+        let _ = std::fs::create_dir_all(rounds);
+        let _ = std::fs::write(&stamp, "");
+    }
+    let modified = |p: &Path| p.metadata().and_then(|m| m.modified()).ok();
+    let Some(since) = modified(&stamp) else {
+        return String::new();
+    };
+    let dir = rounds.join(sid);
+    let Ok(files) = std::fs::read_dir(&dir) else {
+        return String::new();
+    };
+    let mut out = String::new();
+    for f in files.flatten() {
+        let p = f.path();
+        let Some(name) = p
+            .file_name()
+            .and_then(|n| n.to_str())
+            .and_then(|n| n.strip_suffix(".answer.md"))
+        else {
+            continue;
+        };
+        if modified(&p).map_or(true, |t| t < since) || dir.join(format!("{name}.dropped")).exists()
+        {
+            continue;
+        }
+        if let Ok(text) = std::fs::read_to_string(&p) {
+            if take(&dir, name) {
+                out += &format!("ANSWER to {name}:\n{text}\n");
+            }
+        }
+    }
+    if out.is_empty() {
+        return out;
+    }
+    format!("The user answered a widget round after its waiter had stopped:\n{out}")
+}
+
+/// `where`, `wait` and `drop`: the calls a Claude session makes to ask through the widget.
 /// `where` prints (and creates) this session's round folder; the session writes <name>.html there.
 /// `wait <name>` blocks until the user sends the answer, prints it and exits — run it in the
-/// background, its exit is what brings the session back. The session id comes from the
-/// CLAUDE_CODE_SESSION_ID that Claude Code gives every command it runs.
+/// background, its exit is what brings the session back. It gives up after a day (or the hours
+/// given after the name); an answer sent later comes with the user's next message (`late_answers`).
+/// `drop <name>` withdraws a round the user answered in the chat: the widget stops showing it and
+/// closes its window, its waiter exits.
+/// The session id comes from the CLAUDE_CODE_SESSION_ID that Claude Code gives every command it runs.
 fn round_command(args: &[String]) -> Option<i32> {
     let cmd = args.get(1)?.as_str();
-    if cmd != "where" && cmd != "wait" {
+    if !["where", "wait", "drop"].contains(&cmd) {
         return None;
     }
     let sid = std::env::var("CLAUDE_CODE_SESSION_ID").unwrap_or_default();
@@ -125,27 +182,44 @@ fn round_command(args: &[String]) -> Option<i32> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
     {
-        eprintln!("usage: claude-widget-hook wait <round-name>   (letters, digits, - and _)");
+        eprintln!("usage: claude-widget-hook wait|drop <round-name>   (letters, digits, - and _)");
         return Some(2);
     }
     if !dir.join(format!("{name}.html")).exists() {
         eprintln!("no round {name}.html in {}", dir.display());
         return Some(2);
     }
+    let dropped = dir.join(format!("{name}.dropped"));
+    if cmd == "drop" {
+        if std::fs::write(&dropped, "").is_err() {
+            eprintln!("could not withdraw {name} in {}", dir.display());
+            return Some(1);
+        }
+        println!("Round {name} withdrawn from the widget.");
+        return Some(0);
+    }
     let answer = dir.join(format!("{name}.answer.md"));
-    let hours: u64 = args.get(3).and_then(|h| h.parse().ok()).unwrap_or(8);
+    let hours: u64 = args.get(3).and_then(|h| h.parse().ok()).unwrap_or(24);
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(hours * 3600);
     while std::time::Instant::now() < deadline {
         if let Ok(text) = std::fs::read_to_string(&answer) {
-            println!(
-                "ANSWER to {name}:
+            if take(&dir, &name) {
+                println!(
+                    "ANSWER to {name}:
 {text}"
-            );
+                );
+            } else {
+                println!("The answer to {name} already came with the user's message.");
+            }
+            return Some(0);
+        }
+        if dropped.exists() {
+            println!("Round {name} was withdrawn — no answer to wait for.");
             return Some(0);
         }
         std::thread::sleep(std::time::Duration::from_millis(500));
     }
-    println!("No answer to {name} — gave up waiting.");
+    println!("No answer to {name} — gave up waiting. If the user answers later, it comes with their next message.");
     Some(1)
 }
 
@@ -245,5 +319,47 @@ fn main() {
     let tmp = dir.join(format!("{sid}.{}.tmp", std::process::id()));
     if std::fs::write(&tmp, st.to_string()).is_ok() && std::fs::rename(&tmp, &path).is_err() {
         let _ = std::fs::remove_file(&tmp);
+    }
+
+    // What this hook prints on UserPromptSubmit, Claude reads along with the message.
+    if event == "UserPromptSubmit" {
+        if let Some(rounds) = dir.parent().map(|d| d.join("rounds")) {
+            print!("{}", late_answers(&rounds, &sid));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_late_answer_comes_once_and_an_old_one_never() {
+        let rounds = std::env::temp_dir().join(format!("cw-rounds-{}", std::process::id()));
+        let dir = rounds.join("s1");
+        std::fs::create_dir_all(&dir).unwrap();
+        // Answered before the hook kept count: a waiter of the time took it.
+        std::fs::write(dir.join("old.answer.md"), "1 — A").unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        assert_eq!(
+            late_answers(&rounds, "s1"),
+            "",
+            "the first call only sets the stamp"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        std::fs::write(dir.join("r1.answer.md"), "1 — B").unwrap();
+        std::fs::write(dir.join("r2.answer.md"), "1 — C").unwrap();
+        assert!(take(&dir, "r2"), "the waiter of r2 took its answer");
+        let out = late_answers(&rounds, "s1");
+        assert!(out.contains("ANSWER to r1:\n1 — B"), "{out}");
+        assert!(!out.contains("r2") && !out.contains("old"), "{out}");
+        assert_eq!(
+            late_answers(&rounds, "s1"),
+            "",
+            "an answer goes to the session once"
+        );
+        assert!(!take(&dir, "r1"), "a waiter started now finds it taken");
+        let _ = std::fs::remove_dir_all(&rounds);
     }
 }

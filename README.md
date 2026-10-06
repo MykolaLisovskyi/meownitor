@@ -58,6 +58,8 @@ runs `claude-widget-hook.exe wait <name>` in the background. The
 widget shows the session as asking and chirps; «Відповісти» opens the page in a window centred on the
 widget's monitor (served through the `round` scheme, `src-tauri/src/rounds.rs`); the page's
 «Надіслати» POSTs `/answer`, the answer lands in `<name>.answer.md` and the waiter hands it back.
+A session withdraws a round the user answered in the chat (`claude-widget-hook drop <name>`), and an
+answer sent after its waiter stopped comes with the user's next message.
 While a round window is in front, it and its page keep one keyboard layout: the page types in
 WebView2's own process, and Windows hands a layout to one of the two threads at a time, so the
 language bar and switchers that read the foreground window (CtrlShiftLangFixer) would otherwise
